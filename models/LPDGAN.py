@@ -10,6 +10,16 @@ from models.config_su import get_config_or
 sys.path.append("..")
 
 
+def get_device(gpu_ids):
+    """Get best available device: CUDA > MPS > CPU"""
+    if gpu_ids:
+        if torch.cuda.is_available():
+            return torch.device(f'cuda:{gpu_ids[0]}')
+        elif torch.backends.mps.is_available():
+            return torch.device('mps')
+    return torch.device('cpu')
+
+
 class LPDGAN(nn.Module):
     def __init__(self, opt):
         super(LPDGAN, self).__init__()
@@ -23,13 +33,13 @@ class LPDGAN(nn.Module):
         self.optimizers = []
         self.image_paths = []
         self.metric = 0
-        self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')
+        self.device = get_device(self.gpu_ids)
         self.visual_names = ['real_A', 'fake_B', 'real_B']
         config_su = get_config_or()
         self.netG = SwinTransformer_Backbone(config_su).to(self.device)
 
         self.criterionL1 = torch.nn.L1Loss()
-        self.perceptualLoss = networks.PerceptualLoss().to(self.device)
+        self.perceptualLoss = networks.PerceptualLoss(self.device)
 
         if self.mode == 'train':
             self.model_names = ['G', 'D', 'D_smallblock', 'D1', 'D2']
@@ -78,16 +88,20 @@ class LPDGAN(nn.Module):
         self.image_paths = input['A_paths']
 
         if self.mode == 'train':
-            self.plate_info = input['plate_info'].to(self.device)
+            if 'plate_info' in input:
+                self.plate_info = input['plate_info'].to(self.device)
+                self.has_plate_info = True
+            else:
+                self.has_plate_info = False
 
     def forward(self):
         self.fake_B, self.fake_B1, self.fake_B2, self.fake_B3, self.plate1, self.plate2 = self.netG(self.real_A,
                                                                                                     self.real_A1,
                                                                                                     self.real_A2,
                                                                                                     self.real_A3)
-        self.fake_B_split = torch.chunk(self.fake_B, 7, dim=3)
-        self.real_B_split = torch.chunk(self.real_B, 7, dim=3)
-        self.real_A_split = torch.chunk(self.real_A, 7, dim=3)
+        self.fake_B_split = [t.contiguous() for t in torch.chunk(self.fake_B, 7, dim=3)]
+        self.real_B_split = [t.contiguous() for t in torch.chunk(self.real_B, 7, dim=3)]
+        self.real_A_split = [t.contiguous() for t in torch.chunk(self.real_A, 7, dim=3)]
 
     def set_requires_grad(self, nets, requires_grad=False):
         if not isinstance(nets, list):
@@ -200,10 +214,13 @@ class LPDGAN(nn.Module):
 
         self.loss_P_loss = (loss_P_loss + loss_P_loss1 + loss_P_loss2 + loss_P_loss3) / 4 * 0.01
 
-        self.loss_PlateNum_L1 = (self.criterionL1(self.plate1, self.plate_info) + self.criterionL1(self.plate2,
-                                                                                                   self.plate_info)) / 2 * 0.01
-
-        self.loss_G = self.loss_G_GAN + self.loss_G_s + self.loss_G_L1 + self.loss_P_loss + 0.1 * self.loss_PlateNum_L1
+        if self.has_plate_info:
+            self.loss_PlateNum_L1 = (self.criterionL1(self.plate1, self.plate_info) + self.criterionL1(self.plate2,
+                                                                                                       self.plate_info)) / 2 * 0.01
+            self.loss_G = self.loss_G_GAN + self.loss_G_s + self.loss_G_L1 + self.loss_P_loss + 0.1 * self.loss_PlateNum_L1
+        else:
+            self.loss_PlateNum_L1 = torch.tensor(0.0, device=self.device)
+            self.loss_G = self.loss_G_GAN + self.loss_G_s + self.loss_G_L1 + self.loss_P_loss
         self.loss_G.backward()
 
     def optimize_parameters(self):
@@ -219,12 +236,10 @@ class LPDGAN(nn.Module):
         self.optimizer_G.step()
 
     def cal_gp(self, fake_AB, real_AB):
-        r = torch.rand(size=(real_AB.shape[0], 1, 1, 1))
-        r = r.cuda()
+        r = torch.rand(size=(real_AB.shape[0], 1, 1, 1)).to(self.device)
         x = (r * real_AB + (1 - r) * fake_AB).requires_grad_(True)
         d = self.netD(x)
-        fake = torch.ones_like(d)
-        fake = fake.cuda()
+        fake = torch.ones_like(d).to(self.device)
         g = torch.autograd.grad(
             outputs=d,
             inputs=x,

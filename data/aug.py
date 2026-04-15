@@ -4,23 +4,23 @@ import albumentations as albu
 def get_transforms(size):
     augs = {'weak': albu.Compose([albu.HorizontalFlip(),
                                   ]),
-            'geometric': albu.OneOf([albu.HorizontalFlip(always_apply=True),
-                                     albu.ShiftScaleRotate(always_apply=True),
-                                     albu.Transpose(always_apply=True),
-                                     albu.OpticalDistortion(always_apply=True),
-                                     albu.ElasticTransform(always_apply=True),
+            'geometric': albu.OneOf([albu.HorizontalFlip(),
+                                     albu.ShiftScaleRotate(),
+                                     albu.Transpose(),
+                                     albu.OpticalDistortion(),
+                                     albu.ElasticTransform(),
                                      ])
             }
 
     aug_fn = augs['geometric']
-    crop_fn = {'random': albu.RandomCrop(size, size, always_apply=True),
-               'center': albu.CenterCrop(size, size, always_apply=True)}['random']
+    crop_fn = {'random': albu.RandomCrop(height=size[0], width=size[1]),
+               'center': albu.CenterCrop(height=size[0], width=size[1])}['random']
 
-    effect = albu.OneOf([albu.MotionBlur(blur_limit=21, always_apply=True),
-                         albu.RandomRain(always_apply=True),
-                         albu.RandomFog(always_apply=True),
-                         albu.RandomSnow(always_apply=True)])
-    motion_blur = albu.MotionBlur(blur_limit=55, always_apply=True)
+    effect = albu.OneOf([albu.MotionBlur(blur_limit=21),
+                         albu.RandomRain(),
+                         albu.RandomFog(),
+                         albu.RandomSnow()])
+    motion_blur = albu.MotionBlur(blur_limit=55)
 
     resize = albu.Resize(height=size[0], width=size[1])
 
@@ -39,11 +39,11 @@ def get_transforms(size):
 def get_transforms_fortest(size):
     resize = albu.Resize(height=size[0], width=size[1])
 
-    effect = albu.OneOf([albu.MotionBlur(always_apply=True),
-                         albu.RandomRain(always_apply=True),
-                         albu.RandomFog(always_apply=True),
-                         albu.RandomSnow(always_apply=True)])
-    motion_blur = albu.MotionBlur(blur_limit=51, always_apply=True)
+    effect = albu.OneOf([albu.MotionBlur(),
+                         albu.RandomRain(),
+                         albu.RandomFog(),
+                         albu.RandomSnow()])
+    motion_blur = albu.MotionBlur(blur_limit=51)
 
     pipeline = albu.Compose([resize], additional_targets={'target': 'image'})
 

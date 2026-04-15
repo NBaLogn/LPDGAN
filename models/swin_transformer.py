@@ -1108,6 +1108,8 @@ class SwinTransformerSys(nn.Module):
 
     def fusion1(self, f1, f2):
         f2_A, f2_B = torch.chunk(f2, chunks=2, dim=2)
+        f2_A = f2_A.contiguous()
+        f2_B = f2_B.contiguous()
         f2_A = self.Fusion1CNN1(f2_A)
         f2_B = self.Fusion1CNN2(f2_B)
         add_res = torch.mul(f2_A, f1) + f2_B
@@ -1117,6 +1119,8 @@ class SwinTransformerSys(nn.Module):
 
     def fusion2(self, f1, f2):
         f2_A, f2_B = torch.chunk(f2, chunks=2, dim=2)
+        f2_A = f2_A.contiguous()
+        f2_B = f2_B.contiguous()
         f2_A = self.Fusion2CNN1(f2_A)
         f2_B = self.Fusion2CNN2(f2_B)
         add_res = torch.mul(f2_A, f1) + f2_B

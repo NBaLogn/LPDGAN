@@ -1,0 +1,12 @@
+================ Training Loss (Tue Apr 14 16:04:34 2026) ================
+================ Training Loss (Tue Apr 14 16:11:58 2026) ================
+================ Training Loss (Tue Apr 14 16:17:36 2026) ================
+================ Training Loss (Tue Apr 14 16:20:51 2026) ================
+================ Training Loss (Tue Apr 14 16:24:17 2026) ================
+================ Training Loss (Tue Apr 14 16:57:34 2026) ================
+================ Training Loss (Tue Apr 14 17:10:24 2026) ================
+(epoch: 1, iters: 10400, time: 0.233, data: 0.096) G_GAN: -1.300607 G_L1: 0.492332 PlateNum_L1: 0.000000 D_GAN: 0.724911 P_loss: 0.393003 D_real: -0.544329 D_fake: 1.994151 D_s: 1.186814 
+(epoch: 2, iters: 10390, time: 0.232, data: 0.064) G_GAN: -1.496538 G_L1: 0.492365 PlateNum_L1: 0.000000 D_GAN: 0.382922 P_loss: 0.470272 D_real: -0.916642 D_fake: 1.682487 D_s: 1.148425 
+(epoch: 3, iters: 10380, time: 0.235, data: 0.030) G_GAN: -1.824351 G_L1: 0.493999 PlateNum_L1: 0.000000 D_GAN: 0.693627 P_loss: 0.488366 D_real: -0.654865 D_fake: 2.042119 D_s: 1.163629 
+(epoch: 4, iters: 10370, time: 0.235, data: 0.053) G_GAN: -1.730696 G_L1: 0.472494 PlateNum_L1: 0.000000 D_GAN: 1.094377 P_loss: 0.366610 D_real: 0.316491 D_fake: 1.872264 D_s: 1.220342 
+(epoch: 5, iters: 10360, time: 0.243, data: 0.041) G_GAN: -1.882056 G_L1: 0.512105 PlateNum_L1: 0.000000 D_GAN: 0.043450 P_loss: 0.385194 D_real: -2.042818 D_fake: 2.129719 D_s: 1.205181 

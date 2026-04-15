@@ -61,8 +61,9 @@ class GANLoss(nn.Module):
 
 
 class PerceptualLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, device=None):
         super(PerceptualLoss, self).__init__()
+        self.device = device or (torch.device('cuda') if torch.cuda.is_available() else (torch.device('mps') if torch.backends.mps.is_available() else torch.device('cpu')))
         with torch.no_grad():
           self.vgg_relu_3_3 = self.contentFunc(15)
           self.vgg_relu_2_2 = self.contentFunc(8)
@@ -70,9 +71,8 @@ class PerceptualLoss(nn.Module):
 
     def contentFunc(self, relu_layer):
         cnn = models.vgg19(pretrained=True).features
-        cnn = cnn.cuda()
-        model = nn.Sequential()
-        model = model.cuda()
+        cnn = cnn.to(self.device)
+        model = nn.Sequential().to(self.device)
         model = model.eval()
         for i, layer in enumerate(list(cnn)):
             model.add_module(str(i), layer)

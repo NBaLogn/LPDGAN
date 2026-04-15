@@ -23,9 +23,16 @@ class LPBlurDataset(Dataset):
         assert len(self.blur) == len(self.sharp)
 
         if self.opt.mode == 'train':
-            df = pd.read_csv(os.path.join(opt.dataroot, 'plate_info.txt'), header=None,
-                             names=['ImageName', 'PlateInfo'])
-            self.txt = df.set_index('ImageName')['PlateInfo'].to_dict()
+            plate_info_path = os.path.join(opt.dataroot, 'plate_info.txt')
+            if os.path.exists(plate_info_path):
+                df = pd.read_csv(plate_info_path, header=None,
+                                 names=['ImageName', 'PlateInfo'])
+                self.txt = df.set_index('ImageName')['PlateInfo'].to_dict()
+                self.has_plate_info = True
+                logger.info(f'Loaded plate_info from {plate_info_path}')
+            else:
+                self.has_plate_info = False
+                logger.info('plate_info.txt not found, skipping auxiliary plate loss')
             self.transform_fn = aug.get_transforms(size=(112, 224))
             self.transform_fn1 = aug.get_transforms(size=(56, 112))
             self.transform_fn2 = aug.get_transforms(size=(28, 56))
@@ -69,18 +76,20 @@ class LPBlurDataset(Dataset):
         sharp_image3 = transforms.ToTensor()(sharp_image3)
 
         if self.opt.mode == 'train':
-            plate_info = self.txt[os.path.basename(self.sharp[idx])]
-            try:
-                plate_info = np.fromstring(plate_info, sep=' ')
-
-            except (SyntaxError, ValueError) as e:
-                print(f"Error restoring array: {e}")
-
-            plate_info = torch.from_numpy(plate_info)
-
-            return {'A': blur_image, 'B': sharp_image, 'A_paths': self.blur[idx], 'B_paths': self.sharp[idx],
-                    'A1': blur_image1, 'B1': sharp_image1, 'A2': blur_image2, 'B2': sharp_image2, 'A3': blur_image3,
-                    'B3': sharp_image3, 'plate_info': plate_info}  # A: blur B: sharp
+            if self.has_plate_info:
+                plate_info = self.txt[os.path.basename(self.sharp[idx])]
+                try:
+                    plate_info = np.fromstring(plate_info, sep=' ')
+                except (SyntaxError, ValueError) as e:
+                    print(f"Error restoring array: {e}")
+                plate_info = torch.from_numpy(plate_info)
+                return {'A': blur_image, 'B': sharp_image, 'A_paths': self.blur[idx], 'B_paths': self.sharp[idx],
+                        'A1': blur_image1, 'B1': sharp_image1, 'A2': blur_image2, 'B2': sharp_image2, 'A3': blur_image3,
+                        'B3': sharp_image3, 'plate_info': plate_info}  # A: blur B: sharp
+            else:
+                return {'A': blur_image, 'B': sharp_image, 'A_paths': self.blur[idx], 'B_paths': self.sharp[idx],
+                        'A1': blur_image1, 'B1': sharp_image1, 'A2': blur_image2, 'B2': sharp_image2, 'A3': blur_image3,
+                        'B3': sharp_image3}
 
         else:
             return {'A': blur_image, 'B': sharp_image, 'A_paths': self.blur[idx], 'B_paths': self.sharp[idx],
