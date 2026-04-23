@@ -3,3 +3,6 @@ __pycache__
 .DS_Store
 *.pth
 checkpoints/LPDGAN/web/images
+output
+dataset
+results
