@@ -1,12 +1,19 @@
-import torch
-from models import networks
-from models.networks import NLayerDiscriminator, PixelDiscriminator, SwinTransformer_Backbone
 import functools
+import os
 import sys
 from collections import OrderedDict
-import os
-import torch.nn as nn
+
+import torch
+from torch import nn
+
+from models import networks
 from models.config_su import get_config_or
+from models.networks import (
+    NLayerDiscriminator,
+    PixelDiscriminator,
+    SwinTransformer_Backbone,
+)
+
 sys.path.append("..")
 
 
@@ -14,15 +21,15 @@ def get_device(gpu_ids):
     """Get best available device: CUDA > MPS > CPU"""
     if gpu_ids:
         if torch.cuda.is_available():
-            return torch.device(f'cuda:{gpu_ids[0]}')
-        elif torch.backends.mps.is_available():
-            return torch.device('mps')
-    return torch.device('cpu')
+            return torch.device(f"cuda:{gpu_ids[0]}")
+        if torch.backends.mps.is_available():
+            return torch.device("mps")
+    return torch.device("cpu")
 
 
 class LPDGAN(nn.Module):
     def __init__(self, opt):
-        super(LPDGAN, self).__init__()
+        super().__init__()
         self.opt = opt
         self.mode = opt.mode
         self.gpu_ids = opt.gpu_ids
@@ -34,24 +41,24 @@ class LPDGAN(nn.Module):
         self.image_paths = []
         self.metric = 0
         self.device = get_device(self.gpu_ids)
-        self.visual_names = ['real_A', 'fake_B', 'real_B']
+        self.visual_names = ["real_A", "fake_B", "real_B"]
         config_su = get_config_or()
         self.netG = SwinTransformer_Backbone(config_su).to(self.device)
 
         self.criterionL1 = torch.nn.L1Loss()
         self.perceptualLoss = networks.PerceptualLoss(self.device)
 
-        if self.mode == 'train':
-            self.model_names = ['G', 'D', 'D_smallblock', 'D1', 'D2']
+        if self.mode == "train":
+            self.model_names = ["G", "D", "D_smallblock", "D1", "D2"]
             self.netD = NLayerDiscriminator(opt.input_nc + opt.output_nc, opt.ndf, n_layers=3, norm_layer=functools.partial(nn.BatchNorm2d, affine=True, track_running_stats=True)).to(self.device)
             self.netD1 = NLayerDiscriminator(opt.input_nc + opt.output_nc, opt.ndf, n_layers=3, norm_layer=functools.partial(nn.BatchNorm2d, affine=True, track_running_stats=True)).to(self.device)
             self.netD2 = NLayerDiscriminator(opt.input_nc + opt.output_nc, opt.ndf, n_layers=3, norm_layer=functools.partial(nn.BatchNorm2d, affine=True, track_running_stats=True)).to(self.device)
 
             self.netD_smallblock = PixelDiscriminator(opt.input_nc, opt.ndf, norm_layer=functools.partial(nn.BatchNorm2d, affine=True, track_running_stats=True)).to(self.device)
 
-            self.loss_names = ['G_GAN', 'G_L1', 'PlateNum_L1', 'D_GAN', 'P_loss', 'D_real', 'D_fake', 'D_s']
+            self.loss_names = ["G_GAN", "G_L1", "PlateNum_L1", "D_GAN", "P_loss", "D_real", "D_fake", "D_s"]
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)
-            self.criterionGAN_s = networks.GANLoss('lsgan').to(self.device)
+            self.criterionGAN_s = networks.GANLoss("lsgan").to(self.device)
 
             self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(0.5, 0.999))
             self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(0.5, 0.999))
@@ -65,31 +72,31 @@ class LPDGAN(nn.Module):
 
         else:
 
-            self.model_names = ['G']
+            self.model_names = ["G"]
             self.loss_names = []
 
 
     def setup(self, opt):
-        if self.mode == 'train':
+        if self.mode == "train":
             self.schedulers = [networks.get_scheduler(optimizer, opt) for optimizer in self.optimizers]
-        if self.mode != 'train' or opt.continue_train:
+        if self.mode != "train" or opt.continue_train:
             load_suffix = opt.load_iter if opt.load_iter > 0 else opt.epoch
             self.load_networks(load_suffix)
 
     def set_input(self, input):
-        self.real_A = input['A'].to(self.device)
-        self.real_B = input['B'].to(self.device)
-        self.real_A1 = input['A1'].to(self.device)
-        self.real_B1 = input['B1'].to(self.device)
-        self.real_A2 = input['A2'].to(self.device)
-        self.real_B2 = input['B2'].to(self.device)
-        self.real_A3 = input['A3'].to(self.device)
-        self.real_B3 = input['B3'].to(self.device)
-        self.image_paths = input['A_paths']
+        self.real_A = input["A"].to(self.device)
+        self.real_B = input["B"].to(self.device)
+        self.real_A1 = input["A1"].to(self.device)
+        self.real_B1 = input["B1"].to(self.device)
+        self.real_A2 = input["A2"].to(self.device)
+        self.real_B2 = input["B2"].to(self.device)
+        self.real_A3 = input["A3"].to(self.device)
+        self.real_B3 = input["B3"].to(self.device)
+        self.image_paths = input["A_paths"]
 
-        if self.mode == 'train':
-            if 'plate_info' in input:
-                self.plate_info = input['plate_info'].to(self.device)
+        if self.mode == "train":
+            if "plate_info" in input:
+                self.plate_info = input["plate_info"].to(self.device)
                 self.has_plate_info = True
             else:
                 self.has_plate_info = False
@@ -245,7 +252,7 @@ class LPDGAN(nn.Module):
             inputs=x,
             grad_outputs=fake,
             create_graph=True,
-            retain_graph=True
+            retain_graph=True,
         )[0]
         gp = ((g.norm(2, dim=1) - 1) ** 2).mean()
         return gp
@@ -255,15 +262,16 @@ class LPDGAN(nn.Module):
         return self.image_paths
 
     def update_learning_rate(self):
-        old_lr = self.optimizers[0].param_groups[0]['lr']
+        old_lr = self.optimizers[0].param_groups[0]["lr"]
         for scheduler in self.schedulers:
-            if self.opt.lr_policy == 'plateau':
+            if self.opt.lr_policy == "plateau":
                 scheduler.step(self.metric)
             else:
                 scheduler.step()
 
-        lr = self.optimizers[0].param_groups[0]['lr']
-        print('learning rate %.7f -> %.7f' % (old_lr, lr))
+        lr = self.optimizers[0].param_groups[0]["lr"]
+        if lr != old_lr:
+            print("learning rate %.7f -> %.7f" % (old_lr, lr))
 
     def get_current_visuals(self):
         visual_ret = OrderedDict()
@@ -277,15 +285,15 @@ class LPDGAN(nn.Module):
         for name in self.loss_names:
             if isinstance(name, str):
                 errors_ret[name] = float(
-                    getattr(self, 'loss_' + name))
+                    getattr(self, "loss_" + name))
         return errors_ret
 
     def save_networks(self, epoch):
         for name in self.model_names:
             if isinstance(name, str):
-                save_filename = '%s_net_%s.pth' % (epoch, name)
+                save_filename = "%s_net_%s.pth" % (epoch, name)
                 save_path = os.path.join(self.save_dir, save_filename)
-                net = getattr(self, 'net' + name)
+                net = getattr(self, "net" + name)
 
                 torch.save(net.cpu().state_dict(), save_path)
                 net.to(self.device)
@@ -294,14 +302,14 @@ class LPDGAN(nn.Module):
     def load_networks(self, epoch):
         for name in self.model_names:
             if isinstance(name, str):
-                load_filename = '%s_net_%s.pth' % (epoch, name)
+                load_filename = "%s_net_%s.pth" % (epoch, name)
                 load_path = os.path.join(self.save_dir, load_filename)
-                net = getattr(self, 'net' + name)
+                net = getattr(self, "net" + name)
                 if isinstance(net, torch.nn.DataParallel):
                     net = net.module
-                print('loading the model from %s' % load_path)
+                print("loading the model from %s" % load_path)
                 state_dict = torch.load(load_path, map_location=str(self.device))
-                if hasattr(state_dict, '_metadata'):
+                if hasattr(state_dict, "_metadata"):
                     del state_dict._metadata
                 net.load_state_dict(state_dict)
 

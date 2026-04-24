@@ -1,9 +1,9 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import torch.utils.checkpoint as checkpoint
 from einops import rearrange
-from timm.models.layers import DropPath, to_2tuple, trunc_normal_
+from timm.layers import DropPath, to_2tuple, trunc_normal_
+from torch import nn
+from torch.utils import checkpoint
 
 
 class Mlp(nn.Module):
@@ -26,7 +26,7 @@ class Mlp(nn.Module):
 
 class CNN_Block(nn.Module):
     def __init__(self, input_ch, output_ch):
-        super(CNN_Block, self).__init__()
+        super().__init__()
         self.conv1 = nn.Conv1d(in_channels=input_ch, out_channels=(input_ch + output_ch) // 2, kernel_size=3, padding=1)
         self.norm1 = nn.BatchNorm1d((input_ch + output_ch) // 2)
         self.conv2 = nn.Conv1d(in_channels=(input_ch + output_ch) // 2, out_channels=output_ch, kernel_size=3, padding=1)
@@ -43,7 +43,7 @@ class CNN_Block(nn.Module):
 
 class CNN_Linear(nn.Module):
     def __init__(self, input_ch, h_w):
-        super(CNN_Linear, self).__init__()
+        super().__init__()
         self.conv1 = nn.Conv1d(in_channels=input_ch, out_channels=128, kernel_size=3, padding=1)
         self.norm1 = nn.BatchNorm1d(128)
         self.conv2 = nn.Conv1d(in_channels=128, out_channels=64, kernel_size=3, padding=1)
@@ -69,8 +69,7 @@ class CNN_Linear(nn.Module):
 
 
 def window_partition(x, window_size):
-    """
-    Args:
+    """Args:
         x: (B, H, W, C)
         window_size (int): window size
 
@@ -84,8 +83,7 @@ def window_partition(x, window_size):
 
 
 def window_reverse(windows, window_size, H, W):
-    """
-    Args:
+    """Args:
         windows: (num_windows*B, window_size, window_size, C)
         window_size (int): Window size
         H (int): Height of image
@@ -101,7 +99,7 @@ def window_reverse(windows, window_size, H, W):
 
 
 class WindowAttention(nn.Module):
-    r""" Window based multi-head self attention (W-MSA) module with relative position bias.
+    r"""Window based multi-head self attention (W-MSA) module with relative position bias.
     It supports both of shifted and non-shifted window.
 
     Args:
@@ -130,7 +128,7 @@ class WindowAttention(nn.Module):
         # get pair-wise relative position index for each token inside the window
         coords_h = torch.arange(self.window_size[0])
         coords_w = torch.arange(self.window_size[1])
-        coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
+        coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing="ij"))  # 2, Wh, Ww
         coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
         relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
         relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
@@ -149,10 +147,9 @@ class WindowAttention(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x, mask=None):
-        """
-        Args:
-            x: input features with shape of (num_windows*B, N, C)
-            mask: (0/-inf) mask with shape of (num_windows, Wh*Ww, Wh*Ww) or None
+        """Args:
+        x: input features with shape of (num_windows*B, N, C)
+        mask: (0/-inf) mask with shape of (num_windows, Wh*Ww, Wh*Ww) or None
         """
         B_, N, C = x.shape
         qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
@@ -182,7 +179,7 @@ class WindowAttention(nn.Module):
         return x
 
     def extra_repr(self) -> str:
-        return f'dim={self.dim}, window_size={self.window_size}, num_heads={self.num_heads}'
+        return f"dim={self.dim}, window_size={self.window_size}, num_heads={self.num_heads}"
 
     def flops(self, N):
         # calculate flops for 1 window with token length of N
@@ -199,7 +196,7 @@ class WindowAttention(nn.Module):
 
 
 class SwinTransformerBlock(nn.Module):
-    r""" Swin Transformer Block.
+    r"""Swin Transformer Block.
 
     Args:
         dim (int): Number of input channels.
@@ -262,7 +259,7 @@ class SwinTransformerBlock(nn.Module):
             mask_windows = window_partition(img_mask, self.window_size)  # nW, window_size, window_size, 1
             mask_windows = mask_windows.view(-1, self.window_size * self.window_size)
             attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)
-            attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
+            attn_mask = attn_mask.masked_fill(attn_mask != 0, (-100.0)).masked_fill(attn_mask == 0, 0.0)
         else:
             attn_mask = None
 
@@ -327,7 +324,7 @@ class SwinTransformerBlock(nn.Module):
 
 
 class PatchMerging(nn.Module):
-    r""" Patch Merging Layer.
+    r"""Patch Merging Layer.
 
     Args:
         input_resolution (tuple[int]): Resolution of input feature.
@@ -343,8 +340,7 @@ class PatchMerging(nn.Module):
         self.norm = norm_layer(4 * dim)
 
     def forward(self, x):
-        """
-        x: B, H*W, C
+        """x: B, H*W, C
         """
         H, W = self.input_resolution
         B, L, C = x.shape
@@ -384,8 +380,7 @@ class PatchExpand(nn.Module):
         self.norm = norm_layer(dim // dim_scale)
 
     def forward(self, x):
-        """
-        x: B, H*W, C
+        """x: B, H*W, C
         """
         H, W = self.input_resolution
         x = self.expand(x)
@@ -393,7 +388,7 @@ class PatchExpand(nn.Module):
         assert L == H * W, "input feature has wrong size"
 
         x = x.view(B, H, W, C)
-        x = rearrange(x, 'b h w (p1 p2 c)-> b (h p1) (w p2) c', p1=2, p2=2, c=C // 4)
+        x = rearrange(x, "b h w (p1 p2 c)-> b (h p1) (w p2) c", p1=2, p2=2, c=C // 4)
         x = x.view(B, -1, C // 4)
         x = self.norm(x)
 
@@ -412,8 +407,7 @@ class FinalPatchExpand_X4(nn.Module):
         self.norm = norm_layer(self.output_dim)
 
     def forward(self, x):
-        """
-        x: B, H*W, C
+        """x: B, H*W, C
         """
         H, W = self.input_resolution
         x = self.expand(x)
@@ -422,7 +416,7 @@ class FinalPatchExpand_X4(nn.Module):
 
         x = x.view(B, H, W, C)
         # x = rearrange(x, 'b h w (p1 p2 c)-> b (h p1) (w p2) c', p1=self.dim_scale, p2=self.dim_scale, c=C//(self.dim_scale**2))
-        x = rearrange(x, 'b h w (p1 p2 c)-> b (h p1) (w p2) c', p1=self.dim_scale // 2, p2=self.dim_scale,
+        x = rearrange(x, "b h w (p1 p2 c)-> b (h p1) (w p2) c", p1=self.dim_scale // 2, p2=self.dim_scale,
                       c=C // (self.dim_scale ** 2 // 2))
         x = x.view(B, -1, self.output_dim)
         x = self.norm(x)
@@ -431,7 +425,7 @@ class FinalPatchExpand_X4(nn.Module):
 
 
 class BasicLayer(nn.Module):
-    """ A basic Swin Transformer layer for one stage.
+    """A basic Swin Transformer layer for one stage.
 
     Args:
         dim (int): Number of input channels.
@@ -501,7 +495,7 @@ class BasicLayer(nn.Module):
 
 
 class BasicLayer_up(nn.Module):
-    """ A basic Swin Transformer layer for one stage.
+    """A basic Swin Transformer layer for one stage.
 
     Args:
         dim (int): Number of input channels.
@@ -560,7 +554,7 @@ class BasicLayer_up(nn.Module):
 
 
 class PatchEmbed(nn.Module):
-    r""" Image to Patch Embedding
+    r"""Image to Patch Embedding
 
     Args:
         img_size (int): Image size.  Default: 224.
@@ -592,7 +586,7 @@ class PatchEmbed(nn.Module):
     def forward(self, x):
         B, C, H, W = x.shape
         # FIXME look at relaxing size constraints
-        assert H == self.img_size[0] and W == self.img_size[1], \
+        assert self.img_size[0] == H and self.img_size[1] == W, \
             f"Input image size ({H}*{W}) doesn't match model ({self.img_size[0]}*{self.img_size[1]})."
         x = self.proj(x).flatten(2).transpose(1, 2)  # B Ph*Pw C
         if self.norm is not None:
@@ -616,9 +610,7 @@ class Input_Extracter(nn.Module):
                  use_checkpoint=False, final_upsample="expand_first", **kwargs):
         super().__init__()
 
-        print("SwinTransformerSys expand initial----depths:{};drop_path_rate:{};num_classes:{}".format(depths,
-                                                                                                       drop_path_rate,
-                                                                                                       num_classes))
+        print(f"SwinTransformerSys expand initial----depths:{depths};drop_path_rate:{drop_path_rate};num_classes:{num_classes}")
         self.img_size = img_size
         self.num_classes = num_classes
         self.num_layers = len(depths)
@@ -697,11 +689,11 @@ class Input_Extracter(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        return {'absolute_pos_embed'}
+        return {"absolute_pos_embed"}
 
     @torch.jit.ignore
     def no_weight_decay_keywords(self):
-        return {'relative_position_bias_table'}
+        return {"relative_position_bias_table"}
 
     # Encoder and Bottleneck
     def forward(self, x):
@@ -732,8 +724,7 @@ class MSTI_Block(nn.Module):
         super().__init__()
 
         print(
-            "MSTI_Block expand initial----depths:{};drop_path_rate:{};num_classes:{}".format(
-                depths, drop_path_rate, num_classes))
+            f"MSTI_Block expand initial----depths:{depths};drop_path_rate:{drop_path_rate};num_classes:{num_classes}")
 
         self.num_classes = num_classes
         self.num_layers = len(depths)
@@ -795,11 +786,11 @@ class MSTI_Block(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        return {'absolute_pos_embed'}
+        return {"absolute_pos_embed"}
 
     @torch.jit.ignore
     def no_weight_decay_keywords(self):
-        return {'relative_position_bias_table'}
+        return {"relative_position_bias_table"}
 
     # Encoder and Bottleneck
     def forward(self, x):
@@ -828,8 +819,7 @@ class MSTO_Block(nn.Module):
         super().__init__()
 
         print(
-            "MSTO_Block expand initial----depths:{};drop_path_rate:{};num_classes:{}".format(
-                depths, drop_path_rate, num_classes))
+            f"MSTO_Block expand initial----depths:{depths};drop_path_rate:{drop_path_rate};num_classes:{num_classes}")
 
         self.num_classes = num_classes
         self.num_layers = len(depths)
@@ -892,11 +882,11 @@ class MSTO_Block(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        return {'absolute_pos_embed'}
+        return {"absolute_pos_embed"}
 
     @torch.jit.ignore
     def no_weight_decay_keywords(self):
-        return {'relative_position_bias_table'}
+        return {"relative_position_bias_table"}
 
     # Encoder and Bottleneck
     def forward(self, x):
@@ -924,7 +914,7 @@ class MSTO_Block(nn.Module):
 
 
 class SwinTransformerSys(nn.Module):
-    r""" Swin Transformer
+    r"""Swin Transformer
         A PyTorch impl of : `Swin Transformer: Hierarchical Vision Transformer using Shifted Windows`  -
           https://arxiv.org/pdf/2103.14030
 
@@ -958,9 +948,7 @@ class SwinTransformerSys(nn.Module):
         super().__init__()
 
         print(
-            "SwinTransformerSys expand initial----depths:{};depths_decoder:{};drop_path_rate:{};num_classes:{}".format(
-                depths,
-                depths_decoder, drop_path_rate, num_classes))
+            f"SwinTransformerSys expand initial----depths:{depths};depths_decoder:{depths_decoder};drop_path_rate:{drop_path_rate};num_classes:{num_classes}")
 
         self.num_classes = num_classes
         self.num_layers = len(depths)
@@ -1100,11 +1088,11 @@ class SwinTransformerSys(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        return {'absolute_pos_embed'}
+        return {"absolute_pos_embed"}
 
     @torch.jit.ignore
     def no_weight_decay_keywords(self):
-        return {'relative_position_bias_table'}
+        return {"relative_position_bias_table"}
 
     def fusion1(self, f1, f2):
         f2_A, f2_B = torch.chunk(f2, chunks=2, dim=2)

@@ -1,38 +1,40 @@
 import os
 from glob import glob
-from glog import logger
-from torch.utils.data import Dataset
-from data import aug
-import torch
-from torchvision import transforms
+
 import numpy as np
-from PIL import Image
 import pandas as pd
+import torch
+from glog import logger
+from PIL import Image
+from torch.utils.data import Dataset
+from torchvision import transforms
+
+from data import aug
 
 
 class LPBlurDataset(Dataset):
     def __init__(self, opt):
-        super(LPBlurDataset, self).__init__()
+        super().__init__()
         self.opt = opt
 
-        self.files_a = os.path.join(opt.dataroot, opt.mode, 'blur')
-        self.files_b = os.path.join(opt.dataroot, opt.mode, 'sharp')
+        self.files_a = os.path.join(opt.dataroot, opt.mode, "blur")
+        self.files_b = os.path.join(opt.dataroot, opt.mode, "sharp")
 
-        self.blur = glob(os.path.join(self.files_a, '*.jpg'))
-        self.sharp = glob(os.path.join(self.files_b, '*.jpg'))
+        self.blur = glob(os.path.join(self.files_a, "*.jpg"))
+        self.sharp = glob(os.path.join(self.files_b, "*.jpg"))
         assert len(self.blur) == len(self.sharp)
 
-        if self.opt.mode == 'train':
-            plate_info_path = os.path.join(opt.dataroot, 'plate_info.txt')
+        if self.opt.mode == "train":
+            plate_info_path = os.path.join(opt.dataroot, "plate_info.txt")
             if os.path.exists(plate_info_path):
                 df = pd.read_csv(plate_info_path, header=None,
-                                 names=['ImageName', 'PlateInfo'])
-                self.txt = df.set_index('ImageName')['PlateInfo'].to_dict()
+                                 names=["ImageName", "PlateInfo"])
+                self.txt = df.set_index("ImageName")["PlateInfo"].to_dict()
                 self.has_plate_info = True
-                logger.info(f'Loaded plate_info from {plate_info_path}')
+                logger.info(f"Loaded plate_info from {plate_info_path}")
             else:
                 self.has_plate_info = False
-                logger.info('plate_info.txt not found, skipping auxiliary plate loss')
+                logger.info("plate_info.txt not found, skipping auxiliary plate loss")
             self.transform_fn = aug.get_transforms(size=(112, 224))
             self.transform_fn1 = aug.get_transforms(size=(56, 112))
             self.transform_fn2 = aug.get_transforms(size=(28, 56))
@@ -45,7 +47,7 @@ class LPBlurDataset(Dataset):
             self.transform_fn3 = aug.get_transforms_fortest(size=(14, 28))
 
         self.normalize_fn = aug.get_normalize()
-        logger.info(f'Dataset has been created with {len(self.blur)} samples')
+        logger.info(f"Dataset has been created with {len(self.blur)} samples")
 
     def __len__(self):
         return len(self.blur)
@@ -75,26 +77,24 @@ class LPBlurDataset(Dataset):
         blur_image3 = transforms.ToTensor()(blur_image3)
         sharp_image3 = transforms.ToTensor()(sharp_image3)
 
-        if self.opt.mode == 'train':
+        if self.opt.mode == "train":
             if self.has_plate_info:
                 plate_info = self.txt[os.path.basename(self.sharp[idx])]
                 try:
-                    plate_info = np.fromstring(plate_info, sep=' ')
+                    plate_info = np.fromstring(plate_info, sep=" ")
                 except (SyntaxError, ValueError) as e:
                     print(f"Error restoring array: {e}")
                 plate_info = torch.from_numpy(plate_info)
-                return {'A': blur_image, 'B': sharp_image, 'A_paths': self.blur[idx], 'B_paths': self.sharp[idx],
-                        'A1': blur_image1, 'B1': sharp_image1, 'A2': blur_image2, 'B2': sharp_image2, 'A3': blur_image3,
-                        'B3': sharp_image3, 'plate_info': plate_info}  # A: blur B: sharp
-            else:
-                return {'A': blur_image, 'B': sharp_image, 'A_paths': self.blur[idx], 'B_paths': self.sharp[idx],
-                        'A1': blur_image1, 'B1': sharp_image1, 'A2': blur_image2, 'B2': sharp_image2, 'A3': blur_image3,
-                        'B3': sharp_image3}
+                return {"A": blur_image, "B": sharp_image, "A_paths": self.blur[idx], "B_paths": self.sharp[idx],
+                        "A1": blur_image1, "B1": sharp_image1, "A2": blur_image2, "B2": sharp_image2, "A3": blur_image3,
+                        "B3": sharp_image3, "plate_info": plate_info}  # A: blur B: sharp
+            return {"A": blur_image, "B": sharp_image, "A_paths": self.blur[idx], "B_paths": self.sharp[idx],
+                    "A1": blur_image1, "B1": sharp_image1, "A2": blur_image2, "B2": sharp_image2, "A3": blur_image3,
+                    "B3": sharp_image3}
 
-        else:
-            return {'A': blur_image, 'B': sharp_image, 'A_paths': self.blur[idx], 'B_paths': self.sharp[idx],
-                    'A1': blur_image1, 'B1': sharp_image1, 'A2': blur_image2, 'B2': sharp_image2, 'A3': blur_image3,
-                    'B3': sharp_image3}
+        return {"A": blur_image, "B": sharp_image, "A_paths": self.blur[idx], "B_paths": self.sharp[idx],
+                "A1": blur_image1, "B1": sharp_image1, "A2": blur_image2, "B2": sharp_image2, "A3": blur_image3,
+                "B3": sharp_image3}
 
     def load_data(self):
         dataloader = torch.utils.data.DataLoader(

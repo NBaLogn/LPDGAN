@@ -1,44 +1,46 @@
-import torch
-import torch.nn as nn
-import functools
-from torch.optim import lr_scheduler
-import torchvision.models as models
-import torchvision.transforms as transforms
-from models.swin_transformer import SwinTransformerSys
 import copy
+import functools
+
+import torch
+from torch import nn
+from torch.optim import lr_scheduler
+from torchvision import models, transforms
+
+from models.swin_transformer import SwinTransformerSys
+
 
 def get_scheduler(optimizer, opt):
-    if opt.lr_policy == 'linear':
+    if opt.lr_policy == "linear":
         def lambda_rule(epoch):
             lr_l = 1.0 - max(0, epoch + 1 - opt.n_epochs) / float(opt.n_epochs_decay + 1)
             return lr_l
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
-    elif opt.lr_policy == 'step':
+    elif opt.lr_policy == "step":
         scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.1)
-    elif opt.lr_policy == 'plateau':
-        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, threshold=0.01, patience=5)
-    elif opt.lr_policy == 'cosine':
+    elif opt.lr_policy == "plateau":
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.2, threshold=0.01, patience=5)
+    elif opt.lr_policy == "cosine":
         scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=opt.n_epochs, eta_min=0)
     else:
-        return NotImplementedError('learning rate policy [%s] is not implemented', opt.lr_policy)
+        return NotImplementedError("learning rate policy [%s] is not implemented", opt.lr_policy)
     return scheduler
 
 
 class GANLoss(nn.Module):
 
     def __init__(self, gan_mode, target_real_label=1.0, target_fake_label=0.0):
-        super(GANLoss, self).__init__()
-        self.register_buffer('real_label', torch.tensor(target_real_label))
-        self.register_buffer('fake_label', torch.tensor(target_fake_label))
+        super().__init__()
+        self.register_buffer("real_label", torch.tensor(target_real_label))
+        self.register_buffer("fake_label", torch.tensor(target_fake_label))
         self.gan_mode = gan_mode
-        if gan_mode == 'lsgan':
+        if gan_mode == "lsgan":
             self.loss = nn.MSELoss()
-        elif gan_mode == 'vanilla':
+        elif gan_mode == "vanilla":
             self.loss = nn.BCEWithLogitsLoss()
-        elif gan_mode in ['wgangp']:
+        elif gan_mode in ["wgangp"]:
             self.loss = None
         else:
-            raise NotImplementedError('gan mode %s not implemented' % gan_mode)
+            raise NotImplementedError("gan mode %s not implemented" % gan_mode)
 
     def get_target_tensor(self, prediction, target_is_real):
 
@@ -49,10 +51,10 @@ class GANLoss(nn.Module):
         return target_tensor.expand_as(prediction)
 
     def __call__(self, prediction, target_is_real):
-        if self.gan_mode in ['lsgan', 'vanilla']:
+        if self.gan_mode in ["lsgan", "vanilla"]:
             target_tensor = self.get_target_tensor(prediction, target_is_real)
             loss = self.loss(prediction, target_tensor)
-        elif self.gan_mode == 'wgangp':
+        elif self.gan_mode == "wgangp":
             if target_is_real:
                 loss = -prediction.mean()
             else:
@@ -62,15 +64,15 @@ class GANLoss(nn.Module):
 
 class PerceptualLoss(nn.Module):
     def __init__(self, device=None):
-        super(PerceptualLoss, self).__init__()
-        self.device = device or (torch.device('cuda') if torch.cuda.is_available() else (torch.device('mps') if torch.backends.mps.is_available() else torch.device('cpu')))
+        super().__init__()
+        self.device = device or (torch.device("cuda") if torch.cuda.is_available() else (torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")))
         with torch.no_grad():
           self.vgg_relu_3_3 = self.contentFunc(15)
           self.vgg_relu_2_2 = self.contentFunc(8)
           self.transform = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     def contentFunc(self, relu_layer):
-        cnn = models.vgg19(pretrained=True).features
+        cnn = models.vgg19(weights=models.VGG19_Weights.IMAGENET1K_V1).features
         cnn = cnn.to(self.device)
         model = nn.Sequential().to(self.device)
         model = model.eval()
@@ -103,7 +105,7 @@ class PerceptualLoss(nn.Module):
 
 class SwinTransformer_Backbone(nn.Module):
     def __init__(self, config, img_size=224, num_classes=3, zero_head=False, vis=False):
-        super(SwinTransformer_Backbone, self).__init__()
+        super().__init__()
         self.num_classes = num_classes
         self.zero_head = zero_head
         self.config = config
@@ -138,20 +140,20 @@ class SwinTransformer_Backbone(nn.Module):
     def load_from(self, config):
         pretrained_path = config.MODEL.PRETRAIN_CKPT
         if pretrained_path is not None:
-            print("pretrained_path:{}".format(pretrained_path))
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            print(f"pretrained_path:{pretrained_path}")
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             pretrained_dict = torch.load(pretrained_path, map_location=device)
             if "model"  not in pretrained_dict:
                 print("---start load pretrained modle by splitting---")
                 pretrained_dict = {k[17:]:v for k,v in pretrained_dict.items()}
                 for k in list(pretrained_dict.keys()):
                     if "output" in k:
-                        print("delete key:{}".format(k))
+                        print(f"delete key:{k}")
                         del pretrained_dict[k]
                 msg = self.swin_unet.load_state_dict(pretrained_dict,strict=False)
                 print(msg)
                 return
-            pretrained_dict = pretrained_dict['model']
+            pretrained_dict = pretrained_dict["model"]
             print("---start load pretrained modle of swin encoder---")
 
             model_dict = self.swin_unet.state_dict()
@@ -164,7 +166,7 @@ class SwinTransformer_Backbone(nn.Module):
             for k in list(full_dict.keys()):
                 if k in model_dict:
                     if full_dict[k].shape != model_dict[k].shape:
-                        print("delete:{};shape pretrain:{};shape model:{}".format(k,v.shape,model_dict[k].shape))
+                        print(f"delete:{k};shape pretrain:{v.shape};shape model:{model_dict[k].shape}")
                         del full_dict[k]
 
         else:
@@ -173,7 +175,7 @@ class SwinTransformer_Backbone(nn.Module):
 class NLayerDiscriminator(nn.Module):
 
     def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d):
-        super(NLayerDiscriminator, self).__init__()
+        super().__init__()
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
@@ -189,7 +191,7 @@ class NLayerDiscriminator(nn.Module):
             sequence += [
                 nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=use_bias),
                 norm_layer(ndf * nf_mult),
-                nn.LeakyReLU(0.2, True)
+                nn.LeakyReLU(0.2, True),
             ]
 
         nf_mult_prev = nf_mult
@@ -197,7 +199,7 @@ class NLayerDiscriminator(nn.Module):
         sequence += [
             nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=1, padding=padw, bias=use_bias),
             norm_layer(ndf * nf_mult),
-            nn.LeakyReLU(0.2, True)
+            nn.LeakyReLU(0.2, True),
         ]
 
         sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]
@@ -210,7 +212,7 @@ class NLayerDiscriminator(nn.Module):
 class PixelDiscriminator(nn.Module):
 
     def __init__(self, input_nc, ndf=64, norm_layer=nn.BatchNorm2d):
-        super(PixelDiscriminator, self).__init__()
+        super().__init__()
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
