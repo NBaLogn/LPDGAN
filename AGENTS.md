@@ -1,40 +1,40 @@
-# LPDGAN - License Plate Deblurring GAN
+# Agent Instructions
 
-## Project Structure
-- `main.py` — Entry point, handles train/test mode routing
-- `train.py` — Training loop
-- `test.py` — Test/inference loop
-- `inference.py` — Standalone inference script
-- `data/LPBlur_dataset.py` — Dataset class, expects `{dataroot}/{mode}/blur` and `{dataroot}/{mode}/sharp`
+This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
 
-## Run Commands
-Use `uvr` (uv run) instead of bare `python`:
+## Quick Reference
+
 ```bash
-uvr main.py --mode train --dataroot ./dataset
-uvr main.py --mode test --dataroot ./dataset
-uvr inference.py --model_path checkpoints/LPDGAN/latest.pth --input blur.jpg --output sharp.jpg
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd update <id> --claim  # Claim work atomically
+bd close <id>         # Complete work
+bd dolt push          # Push beads data to remote
 ```
 
-## Dataset Structure
+## Non-Interactive Shell Commands
+
+**ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
+
+Shell commands like `cp`, `mv`, and `rm` may be aliased to include `-i` (interactive) mode on some systems, causing the agent to hang indefinitely waiting for y/n input.
+
+**Use these forms instead:**
+```bash
+# Force overwrite without prompting
+cp -f source dest           # NOT: cp source dest
+mv -f source dest           # NOT: mv source dest
+rm -f file                  # NOT: rm file
+
+# For recursive operations
+rm -rf directory            # NOT: rm -r directory
+cp -rf source dest          # NOT: cp -r source dest
 ```
-./dataset/
-  train/blur/  train/sharp/
-  test/blur/   test/sharp/
-```
 
-## Key Files
-- `models/LPDGAN.py` — Model architecture
-- `checkpoints/LPDGAN/` — Saved checkpoints
-- `results/` — Test outputs
-
-## Gotchas
-- **Dataset structure is the #1 failure point** — test mode fails with "num_samples=0" when dataset is flat `dataset/blur/` instead of `dataset/train/blur/` and `dataset/test/blur/`
-- `load_iter` defaults to 200, override with `--load_iter` for specific checkpoint
-- `num_test` defaults to 1000 for test mode
-
-## Tools
-- `rtk gain` — Show token savings analytics
-- `rtk discover` — Analyze Claude Code history for missed optimization opportunities
+**Other commands that may prompt:**
+- `scp` - use `-o BatchMode=yes` for non-interactive
+- `ssh` - use `-o BatchMode=yes` to fail instead of prompting
+- `apt-get` - use `-y` flag
+- `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
