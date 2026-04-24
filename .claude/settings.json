@@ -1,0 +1,59 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ruff check --fix --quiet",
+            "cwd": "${workspace}",
+            "if": "Edit(*.py)"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Removing .venv breaks the project. Use uv sync instead.' && exit 1",
+            "if": "Bash(rm -rf .venv)"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'WARNING: You are about to delete all checkpoints. This cannot be undone. Press Ctrl+C to abort.'",
+            "if": "Bash(rm checkpoints/*)"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'WARNING: You are adding .pth files. Large model files (>50MB) should not be committed. Check with: ls -lh *.pth'",
+            "if": "Bash(git add *.pth)"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Reminder: Run /dataset-stats --dataroot <path> before training to validate dataset structure.'",
+            "if": "Bash(uvr main.py --mode train*)"
+          }
+        ]
+      }
+    ]
+  }
+}
