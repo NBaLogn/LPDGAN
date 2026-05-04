@@ -14,3 +14,5 @@ results
 .beads-credential-key
 quan_lp_dataset
 *.zip
+# Added by code-review-graph
+.code-review-graph/

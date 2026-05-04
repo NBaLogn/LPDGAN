@@ -6,7 +6,8 @@
         "code-review-graph",
         "serve"
       ],
-      "type": "stdio"
+      "type": "stdio",
+      "env": []
     }
   }
 }
