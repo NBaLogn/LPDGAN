@@ -7,3 +7,5 @@ checkpoints/LPDGAN/web
 *.jpg
 *.txt
 *.png
+# Added by code-review-graph
+.code-review-graph/
