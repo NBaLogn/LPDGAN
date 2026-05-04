@@ -29,10 +29,7 @@ def generate_blur_augmentation(sharp_dir, blur_dir, seed=42):
     for i, img_file in enumerate(files):
         image = np.array(Image.open(img_file))
         # Randomly apply one of the effects
-        if random.random() < 0.95:  # 95% chance to apply effect
-            augmented = pipeline(image=image)["image"]
-        else:
-            augmented = image  # 5% chance no blur
+        augmented = pipeline(image=image)["image"]
         Image.fromarray(augmented).save(blur_path / img_file.name)
 
         if (i + 1) % 1000 == 0:
