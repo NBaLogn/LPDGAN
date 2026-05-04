@@ -3,3 +3,7 @@ __pycache__
 checkpoints/LPDGAN/web
 *.pth
 .DS_Store
+*.zip
+*.jpg
+*.txt
+*.png
