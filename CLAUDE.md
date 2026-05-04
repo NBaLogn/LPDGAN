@@ -27,6 +27,10 @@ uvr inference.py --model_path checkpoints/LPDGAN/latest.pth --input blur.jpg --o
 - `checkpoints/LPDGAN/` — Saved checkpoints
 - `results/` — Test outputs
 
+## File Transfer to tnadmin
+- `scp <file> tnadmin:/G:/nblongT04/LPDGAN/` — Transfer checkpoints/results to work server
+- Remote path follows pattern `tnadmin:/G:/nblongT04/<project_name>/`
+
 ## Gotchas
 - **Dataset structure is the #1 failure point** — test mode fails with "num_samples=0" when dataset is flat `dataset/blur/` instead of `dataset/train/blur/` and `dataset/test/blur/`
 - `load_iter` defaults to 200, override with `--load_iter` for specific checkpoint

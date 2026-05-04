@@ -12,3 +12,5 @@ results
 .dolt/
 *.db
 .beads-credential-key
+quan_lp_dataset
+*.zip
