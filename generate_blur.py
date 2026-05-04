@@ -18,11 +18,10 @@ def generate_blur_augmentation(sharp_dir, blur_dir, seed=42):
 
     # Same pipeline as data/aug.py get_transforms()
     effect = albu.OneOf([
-        albu.MotionBlur(blur_limit=41),
-        albu.GaussianBlur(blur_limit=(15, 41)),
-        albu.RandomRain(),
-        albu.RandomFog(),
-        albu.RandomSnow(),
+        albu.MotionBlur(blur_limit=61),
+        albu.RandomRain(rain_type="torrential", drop_width=2, blur_value=12),
+        albu.RandomFog(fog_coef_range=(0.5, 1.0), alpha_coef=0.15),
+        albu.RandomSnow(brightness_coeff=3.0, snow_point_range=(0.3, 0.5)),
     ])
     pipeline = albu.Compose([effect])
 
@@ -30,10 +29,10 @@ def generate_blur_augmentation(sharp_dir, blur_dir, seed=42):
     for i, img_file in enumerate(files):
         image = np.array(Image.open(img_file))
         # Randomly apply one of the effects
-        if random.random() < 0.85:  # 85% chance to apply effect
+        if random.random() < 0.95:  # 95% chance to apply effect
             augmented = pipeline(image=image)["image"]
         else:
-            augmented = image  # 15% chance no blur
+            augmented = image  # 5% chance no blur
         Image.fromarray(augmented).save(blur_path / img_file.name)
 
         if (i + 1) % 1000 == 0:
