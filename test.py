@@ -2,7 +2,7 @@ import os
 from data.LPBlur_dataset import create_dataset
 from models.LPDGAN import create_model
 from util.visualizer import save_images
-from util import html
+from util import html_utils as html
 
 
 def print_test_losses(losses, results_dir, name):
