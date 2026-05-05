@@ -3,7 +3,10 @@ __pycache__
 checkpoints/LPDGAN/web
 *.pth
 .DS_Store
-dataset
 *.zip
 *.jpg
+*.txt
 *.png
+# Added by code-review-graph
+.code-review-graph/
+dataset
