@@ -23,8 +23,7 @@ def get_transforms(size):
     motion_blur = albu.MotionBlur(blur_limit=55)
 
     resize = albu.Resize(height=size[0], width=size[1])
-
-    pipeline = albu.Compose([resize], additional_targets={"target": "image"})
+    pipeline = albu.Compose([resize], additional_targets={"target": "image"}, is_check_shapes=False)
 
     pipforblur = albu.Compose([effect])
 
@@ -38,14 +37,7 @@ def get_transforms(size):
 
 def get_transforms_fortest(size):
     resize = albu.Resize(height=size[0], width=size[1])
-
-    effect = albu.OneOf([albu.MotionBlur(),
-                         albu.RandomRain(),
-                         albu.RandomFog(),
-                         albu.RandomSnow()])
-    motion_blur = albu.MotionBlur(blur_limit=51)
-
-    pipeline = albu.Compose([resize], additional_targets={"target": "image"})
+    pipeline = albu.Compose([resize], additional_targets={"target": "image"}, is_check_shapes=False)
 
     def process(a, b):
         r = pipeline(image=a, target=b)
@@ -56,7 +48,7 @@ def get_transforms_fortest(size):
 
 def get_normalize():
     normalize = albu.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-    normalize = albu.Compose([normalize], additional_targets={"target": "image"})
+    normalize = albu.Compose([normalize], additional_targets={"target": "image"}, is_check_shapes=False)
 
     def process(a, b):
         r = normalize(image=a, target=b)
