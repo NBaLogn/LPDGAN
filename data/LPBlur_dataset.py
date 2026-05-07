@@ -20,8 +20,8 @@ class LPBlurDataset(Dataset):
         self.files_a = os.path.join(opt.dataroot, opt.mode, "blur")
         self.files_b = os.path.join(opt.dataroot, opt.mode, "sharp")
 
-        self.blur = glob(os.path.join(self.files_a, "*.jpg"))
-        self.sharp = glob(os.path.join(self.files_b, "*.jpg"))
+        self.blur = glob(os.path.join(self.files_a, "*.jpg")) + glob(os.path.join(self.files_a, "*.png"))
+        self.sharp = glob(os.path.join(self.files_b, "*.jpg")) + glob(os.path.join(self.files_b, "*.png"))
         assert len(self.blur) == len(self.sharp)
 
         if self.opt.mode == "train":

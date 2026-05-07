@@ -35,3 +35,15 @@
 ================ Training Loss (Wed May  6 06:58:56 2026) ================
 ================ Training Loss (Wed May  6 07:00:33 2026) ================
 ================ Training Loss (Wed May  6 07:08:04 2026) ================
+(epoch: 1, iters: 10400, time: 0.036, data: 0.038) G_GAN: -4.971184 G_L1: 0.489503 PlateNum_L1: 0.000000 D_GAN: 0.671858 P_loss: 0.468494 D_real: -3.946810 D_fake: 5.290526 D_s: 0.358085 
+(epoch: 2, iters: 10370, time: 0.034, data: 0.058) G_GAN: -8.960850 G_L1: 0.448433 PlateNum_L1: 0.000000 D_GAN: 0.929858 P_loss: 0.462043 D_real: -7.506509 D_fake: 9.366224 D_s: 0.408637 
+(epoch: 3, iters: 10340, time: 0.036, data: 0.051) G_GAN: -9.134398 G_L1: 0.463916 PlateNum_L1: 0.000000 D_GAN: 0.852488 P_loss: 0.453110 D_real: -7.791282 D_fake: 9.496258 D_s: 0.376922 
+(epoch: 4, iters: 10310, time: 0.035, data: 0.043) G_GAN: -9.660139 G_L1: 0.505278 PlateNum_L1: 0.000000 D_GAN: 0.825299 P_loss: 0.576648 D_real: -8.172639 D_fake: 9.823236 D_s: 0.424311 
+(epoch: 5, iters: 10280, time: 0.035, data: 0.048) G_GAN: -9.486150 G_L1: 0.492441 PlateNum_L1: 0.000000 D_GAN: 0.707533 P_loss: 0.587363 D_real: -8.209293 D_fake: 9.624359 D_s: 0.404187 
+(epoch: 6, iters: 10250, time: 0.030, data: 0.033) G_GAN: -9.115736 G_L1: 0.450593 PlateNum_L1: 0.000000 D_GAN: 1.137123 P_loss: 0.364804 D_real: -6.897104 D_fake: 9.171351 D_s: 0.362272 
+(epoch: 7, iters: 10220, time: 0.036, data: 0.019) G_GAN: -9.638076 G_L1: 0.466529 PlateNum_L1: 0.000000 D_GAN: 1.057809 P_loss: 0.384327 D_real: -7.612606 D_fake: 9.728224 D_s: 0.356184 
+(epoch: 8, iters: 10190, time: 0.036, data: 0.037) G_GAN: -7.674589 G_L1: 0.468630 PlateNum_L1: 0.000000 D_GAN: 1.366796 P_loss: 0.394293 D_real: -4.904992 D_fake: 7.638584 D_s: 0.343915 
+(epoch: 9, iters: 10160, time: 0.037, data: 0.050) G_GAN: -7.835602 G_L1: 0.490571 PlateNum_L1: 0.000000 D_GAN: 0.788336 P_loss: 0.473142 D_real: -6.560272 D_fake: 8.136944 D_s: 0.376073 
+(epoch: 10, iters: 10130, time: 0.031, data: 0.030) G_GAN: -8.645926 G_L1: 0.475048 PlateNum_L1: 0.000000 D_GAN: 1.067556 P_loss: 0.475006 D_real: -6.689139 D_fake: 8.824251 D_s: 0.384412 
+(epoch: 11, iters: 10100, time: 0.036, data: 0.042) G_GAN: -8.497091 G_L1: 0.478604 PlateNum_L1: 0.000000 D_GAN: 0.840907 P_loss: 0.464600 D_real: -6.984265 D_fake: 8.666080 D_s: 0.386666 
+(epoch: 12, iters: 10070, time: 0.037, data: 0.044) G_GAN: -8.607475 G_L1: 0.460527 PlateNum_L1: 0.000000 D_GAN: 1.108164 P_loss: 0.402516 D_real: -6.624944 D_fake: 8.841273 D_s: 0.381026 

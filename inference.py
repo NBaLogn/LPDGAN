@@ -139,12 +139,13 @@ def main():
     parser.add_argument("--output", "-o", default="./inference_output/", help="Output directory")
     parser.add_argument("--checkpoint_dir", "-c", default="./checkpoints/LPDGAN", help="Checkpoint directory")
     parser.add_argument("--epoch", "-e", default="latest", help="Checkpoint epoch (e.g., 20, latest)")
+    parser.add_argument("--limit", "-l", type=int, default=100, help="Max images per directory (default: 100)")
     args = parser.parse_args()
 
     if os.path.isdir(args.input):
-        image_files = glob(os.path.join(args.input, "*.jpg")) + \
-                      glob(os.path.join(args.input, "*.png")) + \
-                      glob(os.path.join(args.input, "*.jpeg"))
+        image_files = (glob(os.path.join(args.input, "*.jpg")) +
+                      glob(os.path.join(args.input, "*.png")) +
+                      glob(os.path.join(args.input, "*.jpeg")))[:args.limit]
         print(f"Found {len(image_files)} images in {args.input}")
     elif os.path.isfile(args.input):
         image_files = [args.input]

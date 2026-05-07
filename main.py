@@ -36,8 +36,8 @@ if __name__ == "__main__":
     # Train
     parser.add_argument("--batch_size", type=int, default=5)
     parser.add_argument("--weight_decay", type=float, default=0)
-    parser.add_argument("--load_iter", type=int, default=100)
-    parser.add_argument("--epoch", type=int, default=100)
+    parser.add_argument("--load_iter", type=int, default=200)
+    parser.add_argument("--epoch", type=int, default=200)
     parser.add_argument("--print_freq", type=int, default=10400)
     parser.add_argument("--num_worker", type=int, default=0)
     parser.add_argument("--save_latest_freq", type=int, default=5000)
@@ -58,14 +58,14 @@ if __name__ == "__main__":
     # Test
     parser.add_argument("--results_dir", type=str, default="./results/", help="saves results here.")
     parser.add_argument("--aspect_ratio", type=float, default=1.0, help="aspect ratio of result images")
-    parser.add_argument("--num_test", type=int, default=1000, help="how many test images to run")
+    parser.add_argument("--num_test", type=int, default=100, help="how many test images to run")
 
     # For display
     parser.add_argument("--display_freq", type=int, default=10400, help="frequency of showing training results on screen")
     parser.add_argument("--display_ncols", type=int, default=3,
                         help="if positive, display all images in a single visdom web panel with certain number of images per row.")
     parser.add_argument("--display_id", type=int, default=1, help="window id of the web display")
-    parser.add_argument("--update_html_freq", type=int, default=1000,
+    parser.add_argument("--update_html_freq", type=int, default=10000,
                         help="frequency of saving training results to html")
     parser.add_argument("--no_html", action="store_true",
                         help="do not save intermediate training results to [opt.checkpoints_dir]/[opt.name]/web/")
