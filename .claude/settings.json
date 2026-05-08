@@ -64,5 +64,10 @@
         "matcher": ""
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/python3.12)"
+    ]
   }
 }
