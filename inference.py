@@ -51,9 +51,9 @@ def preprocess_image(image_path):
     normalize_fn = get_normalize()
 
     img, _ = transform_fn(image, image)
-    img1, _ = transform_fn1(image, image)
-    img2, _ = transform_fn2(image, image)
-    img3, _ = transform_fn3(image, image)
+    img1, _ = transform_fn1(img, img)
+    img2, _ = transform_fn2(img1, img1)
+    img3, _ = transform_fn3(img2, img2)
 
     img, _ = normalize_fn(img, img)
     img1, _ = normalize_fn(img1, img1)
@@ -104,7 +104,9 @@ class MockOpt:
 
 def load_model(checkpoint_dir, epoch="latest"):
     # save_dir = checkpoint_dir + name, so pass checkpoint_dir as the parent dir
+    name = os.path.basename(checkpoint_dir.rstrip("/"))
     opt = MockOpt(os.path.dirname(checkpoint_dir.rstrip("/")), epoch)
+    opt.name = name
     model = create_model(opt)
     model.setup(opt)
     model.eval()

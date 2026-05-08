@@ -55,6 +55,10 @@ class LPBlurDataset(Dataset):
     def __getitem__(self, idx):
         blur_image = Image.open(self.blur[idx])
         sharp_image = Image.open(self.sharp[idx])
+        if blur_image.mode == "RGBA":
+            blur_image = blur_image.convert("RGB")
+        if sharp_image.mode == "RGBA":
+            sharp_image = sharp_image.convert("RGB")
         blur_image = np.array(blur_image)
         sharp_image = np.array(sharp_image)
 
