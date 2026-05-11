@@ -20,11 +20,19 @@ sys.path.append("..")
 def get_device(gpu_ids):
     """Get best available device: CUDA > MPS > CPU"""
     if gpu_ids:
+        parsed = _parse_gpu_ids(gpu_ids)
         if torch.cuda.is_available():
-            return torch.device(f"cuda:{gpu_ids[0]}")
+            return torch.device(f"cuda:{parsed[0]}")
         if torch.backends.mps.is_available():
             return torch.device("mps")
     return torch.device("cpu")
+
+
+def _parse_gpu_ids(gpu_ids):
+    """Parse gpu_ids from string or list to list of ints"""
+    if isinstance(gpu_ids, str):
+        return [int(x.strip()) for x in gpu_ids.split(",")]
+    return list(gpu_ids)
 
 
 class LPDGAN(nn.Module):
@@ -82,6 +90,17 @@ class LPDGAN(nn.Module):
         if self.mode != "train" or opt.continue_train:
             load_suffix = opt.load_iter if opt.load_iter > 0 else opt.epoch
             self.load_networks(load_suffix)
+        self._wrap_multi_gpu()
+
+    def _wrap_multi_gpu(self):
+        gpu_list = _parse_gpu_ids(self.gpu_ids)
+        if len(gpu_list) > 1:
+            self.netG = nn.DataParallel(self.netG, device_ids=gpu_list)
+            if self.mode == "train":
+                self.netD = nn.DataParallel(self.netD, device_ids=gpu_list)
+                self.netD1 = nn.DataParallel(self.netD1, device_ids=gpu_list)
+                self.netD2 = nn.DataParallel(self.netD2, device_ids=gpu_list)
+                self.netD_smallblock = nn.DataParallel(self.netD_smallblock, device_ids=gpu_list)
 
     def set_input(self, input):
         self.real_A = input["A"].to(self.device)

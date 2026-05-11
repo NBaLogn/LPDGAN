@@ -1,26 +1,26 @@
 uv run main.py --mode train --gpu_ids "0" \
-  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp_dataset/cctv \
+  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/cctv \
   --name cctv \
   --batch_size 16 \
   --num_worker 8 \
   --num_threads 8
 
 uv run main.py --mode train --gpu_ids "1" \
-  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp_dataset/dashcam \
+  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dashcam \
   --name dashcam \
   --batch_size 16 \
   --num_worker 8 \
   --num_threads 8
 
 uv run main.py --mode train --gpu_ids "0,1" \
-  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp_dataset/dual \
+  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dual \
   --name dual \
   --batch_size 16 \
   --num_worker 8 \
   --num_threads 8
 
 uv run inference.py \
--i /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp_dataset/cctv/test/blur \
+-i /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/cctv/test/blur \
 -o results/cctv/inference \
 -c checkpoints/cctv
 
@@ -96,10 +96,62 @@ uv run inference.py \
 -c checkpoints/dashcam \
 -i /mnt/data/nblong-t04/LPDGAN/dataset/teams/test/blur \
 -o results/dashcam/inference/teams 
+uv run inference.py \
+-c checkpoints/dual \
+-i /mnt/data/nblong-t04/LPDGAN/dataset/teams/test/blur \
+-o results/dual/inference/teams 
 
 uv run main.py --mode test \
-  --name cctv \
-  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/teams 
+--epoch 95 \
+--name cctv \
+--dataroot /mnt/data/nblong-t04/LPDGAN/dataset/teams 
 uv run main.py --mode test \
-  --name dashcam \
-  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/teams 
+--epoch 95 \
+--name dashcam \
+--dataroot /mnt/data/nblong-t04/LPDGAN/dataset/teams 
+
+uv run main.py --mode train --gpu_ids "0,1" \
+  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dual \
+  --name dual \
+  --batch_size 40 \
+  --num_worker 8 \
+  --num_threads 8 
+
+uv run main.py --mode test \
+--load_iter 95 \
+--name dual \
+--dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/cctv
+uv run main.py --mode test \
+--load_iter 95 \
+--name dual \
+--dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dashcam
+uv run main.py --mode test \
+--load_iter 95 \
+--name dual \
+--dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dual
+
+uv run main.py --mode test \
+--load_iter 10 \
+--name LPDGAN \
+--dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/cctv
+
+uv run main.py --mode test \
+--load_iter 10 \
+--name LPDGAN \
+--dataroot /mnt/data/nblong-t04/LPDGAN/dataset/teams
+
+uv run main.py --mode train --gpu_ids "0" \
+  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dual \
+  --name dual \
+  --batch_size 40 \
+  --num_worker 8 \
+  --num_threads 8 
+
+uv run main.py \
+  --mode train \
+  --gpu_ids "0,1" \
+  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur \
+  --name LPBlur \
+  --batch_size 48 \
+  --num_worker 16 \
+  --num_threads 16 

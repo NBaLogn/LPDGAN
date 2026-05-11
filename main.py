@@ -58,7 +58,7 @@ if __name__ == "__main__":
     # Test
     parser.add_argument("--results_dir", type=str, default="./results/", help="saves results here.")
     parser.add_argument("--aspect_ratio", type=float, default=1.0, help="aspect ratio of result images")
-    parser.add_argument("--num_test", type=int, default=100, help="how many test images to run")
+    parser.add_argument("--num_test", type=int, default=1000, help="how many test images to run")
 
     # For display
     parser.add_argument("--display_freq", type=int, default=10400, help="frequency of showing training results on screen")

@@ -1,4 +1,3 @@
-LPBlur
 __pycache__
 .DS_Store
 *.pth
@@ -17,5 +16,3 @@ quan_lp_dataset
 # Added by code-review-graph
 .code-review-graph/
 *.png
-*.jpg
-*.jpeg
