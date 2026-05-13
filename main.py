@@ -36,8 +36,8 @@ if __name__ == "__main__":
     # Train
     parser.add_argument("--batch_size", type=int, default=5)
     parser.add_argument("--weight_decay", type=float, default=0)
-    parser.add_argument("--load_iter", type=int, default=200)
-    parser.add_argument("--epoch", type=int, default=200)
+    parser.add_argument("--load_iter", type=int, default=100)
+    parser.add_argument("--epoch", type=int, default=100)
     parser.add_argument("--print_freq", type=int, default=10400)
     parser.add_argument("--num_worker", type=int, default=0)
     parser.add_argument("--save_latest_freq", type=int, default=5000)

@@ -12,6 +12,11 @@ results
 .dolt/
 *.db
 .beads-credential-key
-
+quan_lp_dataset
 *.zip
-*jpg
+# Added by code-review-graph
+.code-review-graph/
+
+*.png
+*.jpg
+*.jpeg

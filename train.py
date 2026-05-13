@@ -1,14 +1,16 @@
+import os
 import time
+
 from data.LPBlur_dataset import create_dataset
 from models.LPDGAN import create_model
 from util.visualizer import Visualizer
-import os
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
+os.environ["KMP_DUPLICATE_LIB_OK"]="True"
 
 def trainer(opt):
     dataset = create_dataset(opt)
     dataset_size = len(dataset)
-    print('The number of training images = %d' % dataset_size)
+    print("The number of training images = %d" % dataset_size)
 
     model = create_model(opt)
     model.setup(opt)
@@ -41,14 +43,14 @@ def trainer(opt):
                 visualizer.print_current_losses(epoch, epoch_iter, losses, t_comp, t_data)
 
             if total_iters % opt.save_latest_freq == 0:
-                print('saving the latest model (epoch %d, total_iters %d)' % (epoch, total_iters))
-                save_suffix = 'iter_%d' % total_iters if opt.save_by_iter else 'latest'
+                print("saving the latest model (epoch %d, total_iters %d)" % (epoch, total_iters))
+                save_suffix = "iter_%d" % total_iters if opt.save_by_iter else "latest"
                 model.save_networks(save_suffix)
 
             iter_data_time = time.time()
         if epoch % opt.save_epoch_freq == 0:
-            print('saving the model at the end of epoch %d, iters %d' % (epoch, total_iters))
-            model.save_networks('latest')
+            print("saving the model at the end of epoch %d, iters %d" % (epoch, total_iters))
+            model.save_networks("latest")
             model.save_networks(epoch)
 
-        print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time))
+        print("End of epoch %d / %d \t Time Taken: %d sec" % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time))

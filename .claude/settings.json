@@ -2,79 +2,26 @@
   "hooks": {
     "PostToolUse": [
       {
+        "matcher": "Edit|Write|Bash",
         "hooks": [
           {
-            "command": "ruff check --fix --quiet",
-            "cwd": "${workspace}",
-            "if": "Edit(*.py)",
-            "type": "command"
+            "type": "command",
+            "command": "code-review-graph update --skip-flows",
+            "timeout": 30
           }
-        ],
-        "matcher": "Edit"
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "command": "bd prime",
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      }
-    ],
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "command": "echo 'Removing .venv breaks the project. Use uv sync instead.' \u0026\u0026 exit 1",
-            "if": "Bash(rm -rf .venv)",
-            "type": "command"
-          }
-        ],
-        "matcher": "Bash"
-      },
-      {
-        "hooks": [
-          {
-            "command": "echo 'WARNING: You are about to delete all checkpoints. This cannot be undone. Press Ctrl+C to abort.'",
-            "if": "Bash(rm checkpoints/*)",
-            "type": "command"
-          }
-        ],
-        "matcher": "Bash"
-      },
-      {
-        "hooks": [
-          {
-            "command": "echo 'WARNING: You are adding .pth files. Large model files (\u003e50MB) should not be committed. Check with: ls -lh *.pth'",
-            "if": "Bash(git add *.pth)",
-            "type": "command"
-          }
-        ],
-        "matcher": "Bash"
-      },
-      {
-        "hooks": [
-          {
-            "command": "echo 'Reminder: Run /dataset-stats --dataroot \u003cpath\u003e before training to validate dataset structure.'",
-            "if": "Bash(uvr main.py --mode train*)",
-            "type": "command"
-          }
-        ],
-        "matcher": "Bash"
+        ]
       }
     ],
     "SessionStart": [
       {
+        "matcher": "",
         "hooks": [
           {
-            "command": "bd prime",
-            "type": "command"
+            "type": "command",
+            "command": "code-review-graph status",
+            "timeout": 10
           }
-        ],
-        "matcher": ""
+        ]
       }
     ]
   }

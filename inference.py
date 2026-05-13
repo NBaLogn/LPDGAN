@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Standalone inference script for LPDGAN.
+"""Standalone inference script for LPDGAN.
 Runs the generator on input images to deblur/sharpen them.
 
 Usage:
@@ -8,34 +7,36 @@ Usage:
     python inference.py --input ./dataset/test/blur/ --output ./output/
 """
 import os
+
 os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 
 import argparse
-import torch
-import numpy as np
-from PIL import Image
-import albumentations as albu
 from glob import glob
+
+import albumentations as albu
+import numpy as np
+import torch
 import torchvision.transforms as T
+from PIL import Image
 
 from models.LPDGAN import create_model
 
 
 def get_transforms_fortest(size):
     resize = albu.Resize(height=size[0], width=size[1])
-    pipeline = albu.Compose([resize], additional_targets={'target': 'image'})
+    pipeline = albu.Compose([resize], additional_targets={"target": "image"})
     def process(a, b):
         r = pipeline(image=a, target=b)
-        return r['image'], r['target']
+        return r["image"], r["target"]
     return process
 
 
 def get_normalize():
     normalize = albu.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-    normalize = albu.Compose([normalize], additional_targets={'target': 'image'})
+    normalize = albu.Compose([normalize], additional_targets={"target": "image"})
     def process(a, b):
         r = normalize(image=a, target=b)
-        return r['image'], r['target']
+        return r["image"], r["target"]
     return process
 
 
@@ -61,11 +62,11 @@ def preprocess_image(image_path):
 
     to_tensor = T.ToTensor()
     return {
-        'A': to_tensor(img).unsqueeze(0),
-        'A1': to_tensor(img1).unsqueeze(0),
-        'A2': to_tensor(img2).unsqueeze(0),
-        'A3': to_tensor(img3).unsqueeze(0),
-        'path': image_path
+        "A": to_tensor(img).unsqueeze(0),
+        "A1": to_tensor(img1).unsqueeze(0),
+        "A2": to_tensor(img2).unsqueeze(0),
+        "A3": to_tensor(img3).unsqueeze(0),
+        "path": image_path,
     }
 
 
@@ -103,7 +104,7 @@ class MockOpt:
 
 def load_model(checkpoint_dir, epoch="latest"):
     # save_dir = checkpoint_dir + name, so pass checkpoint_dir as the parent dir
-    opt = MockOpt(os.path.dirname(checkpoint_dir.rstrip('/')), epoch)
+    opt = MockOpt(os.path.dirname(checkpoint_dir.rstrip("/")), epoch)
     model = create_model(opt)
     model.setup(opt)
     model.eval()
@@ -114,14 +115,14 @@ def infer_image(model, image_path, output_dir):
     data = preprocess_image(image_path)
     # Use same device as model (CPU/CUDA/MPS)
     device = next(model.netG.parameters()).device
-    data['A'] = data['A'].to(device)
-    data['A1'] = data['A1'].to(device)
-    data['A2'] = data['A2'].to(device)
-    data['A3'] = data['A3'].to(device)
+    data["A"] = data["A"].to(device)
+    data["A1"] = data["A1"].to(device)
+    data["A2"] = data["A2"].to(device)
+    data["A3"] = data["A3"].to(device)
 
     with torch.no_grad():
         fake_B, fake_B1, fake_B2, fake_B3, plate1, plate2 = model.netG(
-            data['A'], data['A1'], data['A2'], data['A3']
+            data["A"], data["A1"], data["A2"], data["A3"],
         )
 
     os.makedirs(output_dir, exist_ok=True)
