@@ -2,46 +2,66 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|Bash",
         "hooks": [
           {
-            "type": "command",
             "command": "code-review-graph update --skip-flows",
-            "timeout": 30
+            "timeout": 30,
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": "Edit|Write|Bash"
       },
       {
-        "matcher": "Edit|Write|Bash",
         "hooks": [
           {
-            "type": "command",
             "command": "git rev-parse --git-dir >/dev/null 2>&1 && code-review-graph update --skip-flows --repo \"/Users/logan/Developer/vibes/WORK/LIPLA/LPDGAN\" || true",
-            "timeout": 30
+            "timeout": 30,
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": "Edit|Write|Bash"
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "bd prime",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
       }
     ],
     "SessionStart": [
       {
-        "matcher": "",
         "hooks": [
           {
-            "type": "command",
             "command": "code-review-graph status",
-            "timeout": 10
+            "timeout": 10,
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": ""
       },
       {
-        "matcher": "",
         "hooks": [
           {
-            "type": "command",
             "command": "git rev-parse --git-dir >/dev/null 2>&1 && code-review-graph status --repo \"/Users/logan/Developer/vibes/WORK/LIPLA/LPDGAN\" || echo 'Not a git repo, skipping'",
-            "timeout": 10
+            "timeout": 10,
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": ""
+      },
+      {
+        "hooks": [
+          {
+            "command": "bd prime",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
       }
     ]
   }

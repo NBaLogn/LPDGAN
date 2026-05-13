@@ -11,3 +11,8 @@ checkpoints/LPDGAN/web
 .code-review-graph/
 dataset
 zips
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key

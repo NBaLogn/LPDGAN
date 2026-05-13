@@ -23,8 +23,8 @@ import cv2
 import numpy as np
 
 # Western plate character set (33 classes)
-# # (padding), 0-9 (10 digits), 20 letters (A-Z excl I,J,O,Q,R,W), . (full-stop), - (hyphen)
-CHAR_SET = "#0123456789ABCDEFGHKLMNPSTUVXYZ.-"
+# # (padding), 0-9 (10 digits), 20 letters (A-Z excl I,J,O,Q,W), . (full-stop), - (hyphen)
+CHAR_SET = "#0123456789ABCDEFGHKLMNPRSTUVXYZ"
 CHAR_TO_IDX = {c: i for i, c in enumerate(CHAR_SET)}
 
 
