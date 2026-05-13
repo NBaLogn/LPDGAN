@@ -1,46 +1,45 @@
-# Plan: Symlink dataset images to flat adnl structure
+# Plan: Symlink dataset images to flat adnl + LPBlur structures, split into train/test
 
 ## Context
-Two source datasets (`andan`, `ninhloc`) each contain 24 subdirs (00-23) with JPG images.
-Need flat symlink structure: `dataset/adnl/[dataset]-[number]-[image].jpg`
+Three source datasets (`andan`, `ninhloc`, `LPBlur`) with different subdir structures.
+Final structure: `adnl/[train|test]/sharp/` for andan+ninhloc, `LPBlur/[train|test]/[sharp|blur]/` for LPBlur.
 
-## Approach
-Bash script:
-1. Create `dataset/adnl/` dir
-2. For each dataset (`andan`, `ninhloc`):
-   - For each numbered subdir (00-23):
-     - For each `.jpg` file:
-       - Create symlink: `dataset/adnl/[dataset]-[subdir]-[filename].jpg` → original
-3. Use `ln -s` with relative paths
+## Source datasets
+| Dataset | Source structure | Images |
+|---------|------------------|--------|
+| `andan` | `andan/00-23/*.jpg` | 10,532 |
+| `ninhloc` | `ninhloc/00-23/*.jpg` | 10,186 |
+| `LPBlur` | `LPBlur/sharp/*.jpg`, `LPBlur/blur/*.jpg` | 10,408 each |
 
-## Script (create at `scripts/symlink_adnl.sh`)
-
-**Non-destructive only** — creates symlinks, never deletes anything.
-
-```bash
-#!/bin/bash
-set -euo pipefail
-
-SRC_ROOT="/Users/logan/Developer/vibes/WORK/LIPLA/LPDGAN/dataset"
-DST_DIR="$SRC_ROOT/adnl"
-
-mkdir -p "$DST_DIR"
-
-for dataset in andan ninhloc; do
-  for subdir in "$SRC_ROOT/$dataset"/*/; do
-    subdir_name=$(basename "$subdir")
-    for img in "$subdir"*.jpg; do
-      img_name=$(basename "$img")
-      link_name="${dataset}-${subdir_name}-${img_name}"
-      ln -sf "$(realpath --relative-to="$DST_DIR" "$img")" "$DST_DIR/$link_name"
-    done
-  done
-done
-
-echo "Done. $(ls "$DST_DIR" | wc -l) symlinks created"
+## Final structure
+```
+dataset/
+  adnl/
+    train/sharp/  ← andan + ninhloc symlinks, naming: [dataset]-[subdir]-[image].jpg (18,646)
+    test/sharp/   ← andan + ninhloc symlinks (2,072)
+  LPBlur/
+    train/sharp/  ← LPBlur/sharp symlinks, naming: [image].jpg (9,367)
+    train/blur/   ← LPBlur/blur symlinks, naming: [image].jpg (9,367)
+    test/sharp/   ← LPBlur/sharp symlinks (1,041)
+    test/blur/    ← LPBlur/blur symlinks (1,041)
 ```
 
+## Approach
+Python script `scripts/symlink_and_split_adnl.py`:
+
+1. **adnl**: collect andan + ninhloc → shuffle with `seed(42)` → 90/10 split → symlinks in `adnl/[train|test]/sharp/`
+2. **LPBlur**: separately for each variant (sharp/blur) → shuffle with `seed(42)` → 90/10 split → symlinks in `LPBlur/[train|test]/[sharp|blur]/`
+
+Non-destructive: existing symlinks are replaced if they exist.
+
 ## Verification
-- Run script
-- `ls dataset/adnl/ | head -10` to check naming
-- `file dataset/adnl/andan-00-L1_Lpn_20251012000033280.jpg` to verify symlink validity
+```bash
+ls dataset/adnl/train/sharp/ | wc -l   # 18646
+ls dataset/adnl/test/sharp/  | wc -l   # 2072
+ls dataset/LPBlur/train/sharp/ | wc -l  # 9367
+ls dataset/LPBlur/train/blur/  | wc -l  # 9367
+ls dataset/LPBlur/test/sharp/  | wc -l  # 1041
+ls dataset/LPBlur/test/blur/   | wc -l  # 1041
+file dataset/adnl/train/sharp/andan-00-L1_Lpn_20251012000033280.jpg
+file dataset/LPBlur/train/sharp/grab10.jpg   # LPBlur: naming is just [image].jpg, not LPBlur-sharp-[image].jpg
+```
