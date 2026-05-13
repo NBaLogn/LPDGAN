@@ -12,3 +12,6 @@ results
 .dolt/
 *.db
 .beads-credential-key
+
+*.zip
+*jpg
