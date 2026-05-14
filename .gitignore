@@ -4,6 +4,7 @@ checkpoints/LPDGAN/web
 *.pth
 .DS_Store
 *.zip
+*.7z
 *.jpg
 *.txt
 *.png
