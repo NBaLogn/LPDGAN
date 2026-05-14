@@ -3,7 +3,8 @@ import random
 import os
 from pathlib import Path
 
-SRC_ROOT = Path("/Users/logan/Developer/vibes/WORK/LIPLA/LPDGAN/dataset")
+# SRC_ROOT = Path("/Users/logan/Developer/vibes/WORK/LIPLA/LPDGAN/dataset")
+SRC_ROOT = Path("/mnt/data/nblong-t04/LPDGAN/dataset")
 
 # ── adnl: andan + ninhloc ─────────────────────────────────────────
 ADNL_ROOT = SRC_ROOT / "adnl"

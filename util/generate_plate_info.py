@@ -1,133 +1,124 @@
 """
-Unified plate_info.txt generation. Combines resume and text-based generation
-with charset switching and unread plate tracking.
+Generate plate_info.txt + plate_info_text.txt using PaddleOCR for LPBlur dataset (Western plates).
+
+Format plate_info.txt: <image_name> <21 int indices>
+Format plate_info_text.txt: <image_name> <raw_text>
+Char set (33 classes):
+  Index 0: #  (padding/unknown)
+  Index 1-10: 0-9 (digits)
+  Index 11-30: A-Z excluding I,O (20 letters)
+  Index 31: . (full-stop)
+  Index 32: - (hyphen)
+
+Output files at dataset root: plate_info.txt, plate_info_text.txt
+Each file has entries from train/val/test combined (sorted).
+
+Square plates (2 rows) are flattened - row1 chars first, then row2 chars.
 """
 
 import os
-import sys
 
 TMPDIR = os.environ.get("TMPDIR", "/tmp")
 os.environ["HOME"] = TMPDIR
 
 from paddleocr import PaddleOCR
 
-CHARSETS = {
-    "VN": "#0123456789ABCDEFGHJKLMNPQRSTUVWXYZ",
-    "CN": "#京沪津渝冀晋蒙辽吉黑苏浙皖闽赣鲁豫鄂湘粤桂琼川贵云藏陕甘青宁新学警港澳挂使领民航危0123456789ABCDEFGHJKLMNPQRSTUVWXYZ险品",
-}
+# Western plate character set (33 classes)
+# # (padding), 0-9 (10 digits), 21 letters (A-Z excl I,J,O,Q,W), . (full-stop), - (hyphen)
+CHAR_SET = "#0123456789ABCDEFGHKLMNPRSTUVXYZ"
+CHAR_TO_IDX = {c: i for i, c in enumerate(CHAR_SET)}
 
 
-def filter_chars(text, charset):
-    """Filter text to only chars in charset. VN uppercases; CN passes through Chinese."""
-    if charset == "VN":
-        return "".join(c for c in text.upper() if c in CHARSETS["VN"])
-    else:
-        result = []
-        for c in text:
-            if c in CHARSETS["CN"]:
-                result.append(c)
-        return "".join(result)
-
-
-def text_to_indices(text, char_set, max_len=21):
-    """Convert plate text to fixed-length index sequence."""
+def text_to_indices(text, max_len=21):
+    """Convert plate text to list of 21 indices."""
     indices = []
-    for char in text:
-        if char in char_set:
-            indices.append(char_set.index(char))
+    for char in text.upper():
+        if char in CHAR_TO_IDX:
+            indices.append(CHAR_TO_IDX[char])
         else:
-            indices.append(0)
+            indices.append(CHAR_TO_IDX["#"])  # unknown char -> padding
     while len(indices) < max_len:
-        indices.append(0)
+        indices.append(CHAR_TO_IDX["#"])
     return indices[:max_len]
 
 
-def process_split(split, dataroot, charset="VN", use_gpu=True, gpu_id=0, resume=True):
-    sharp_dir = os.path.join(dataroot, split, "sharp")
-    plate_info_path = os.path.join(dataroot, split, "plate_info.txt")
-    plate_info_text_path = os.path.join(dataroot, split, "plate_info_text.txt")
-    unread_path = os.path.join(dataroot, split, "plate_info_unread.txt")
+def collect_all_images(dataroot):
+    """Collect all images from train/val/test splits, grouped by split."""
+    splits = {}
+    for split in ["train", "val", "test"]:
+        sharp_dir = os.path.join(dataroot, split, "sharp")
+        if os.path.isdir(sharp_dir):
+            splits[split] = sorted(os.listdir(sharp_dir))
+    return splits
 
-    char_set = CHARSETS[charset]
 
-    images = sorted(os.listdir(sharp_dir))
-    total = len(images)
-    print(f"Total images in {split}: {total}")
-    print(f"Charset: {charset} ({len(char_set)} chars)")
+def process_all(dataroot):
+    """Process all images, produce two output files at dataset root."""
+    plate_info_path = os.path.join(dataroot, "plate_info.txt")
+    plate_text_path = os.path.join(dataroot, "plate_info_text.txt")
 
-    processed = set()
-    if resume and os.path.exists(plate_info_path):
-        with open(plate_info_path, "r") as f:
-            for line in f:
-                parts = line.strip().split()
-                if parts:
-                    processed.add(parts[0])
-        print(f"Already processed: {len(processed)}")
+    # Backup existing files
+    for path in [plate_info_path, plate_text_path]:
+        if os.path.exists(path):
+            os.rename(path, path + ".bak")
 
-    remaining = [img for img in images if img not in processed]
-    print(f"Remaining to process: {len(remaining)}")
+    splits = collect_all_images(dataroot)
+    total_images = sum(len(imgs) for imgs in splits.values())
+    print(f"Total images: {total_images} (train={len(splits.get('train',[]))}, val={len(splits.get('val',[]))}, test={len(splits.get('test',[]))})")
 
-    if not remaining:
-        print("Nothing to do.")
-        return
+    ocr = PaddleOCR(lang="ch", use_textline_orientation=True)
 
-    ocr = PaddleOCR(lang="ch", use_textline_orientation=True, use_gpu=use_gpu, gpu_id=gpu_id)
+    idx_lines = []
+    txt_lines = []
+    failed = 0
+    processed = 0
 
-    plate_info_f = open(plate_info_path, "a" if resume else "w")
-    plate_text_f = open(plate_info_text_path, "a" if resume else "w")
-    unread_f = open(unread_path, "a" if resume else "w")
+    for split_name, images in splits.items():
+        sharp_dir = os.path.join(dataroot, split_name, "sharp")
+        for img_name in images:
+            img_path = os.path.join(sharp_dir, img_name)
+            try:
+                result = ocr.predict(img_path)
+                if result and len(result) > 0:
+                    rec_res = result[0]
+                    texts = []
+                    if hasattr(rec_res, 'rec_texts'):
+                        texts = rec_res.rec_texts
+                    elif isinstance(rec_res, dict):
+                        texts = rec_res.get('rec_texts', [])
+                    full_text = "".join(texts) if texts else ""
+                    if not full_text:
+                        failed += 1
+                        full_text = "#" * 21
+                else:
+                    failed += 1
+                    full_text = "#" * 21
+            except Exception as e:
+                print(f"  Error {img_name}: {e}")
+                failed += 1
+                full_text = "#" * 21
 
-    for i, img_name in enumerate(remaining):
-        if i > 0 and i % 500 == 0:
-            print(f"  {i}/{len(remaining)}")
-        img_path = os.path.join(sharp_dir, img_name)
-        full_text = "?"
-        try:
-            ocr_result = ocr.ocr(img_path)
-            if ocr_result and len(ocr_result[0]) > 0:
-                texts = [item[1][0] for item in ocr_result[0]]
-                raw_text = "".join(texts)
-                filtered = filter_chars(raw_text, charset)
-                full_text = filtered if filtered else "?"
-            else:
-                full_text = "?"
-        except Exception:
-            full_text = "?"
+            indices = text_to_indices(full_text)
+            idx_line = img_name + " " + " ".join(str(idx) for idx in indices)
+            txt_line = img_name + " " + full_text
+            idx_lines.append(idx_line)
+            txt_lines.append(txt_line)
+            processed += 1
 
-        if full_text == "?":
-            unread_f.write(img_path + "\n")
-            unread_f.flush()
+            if processed % 500 == 0:
+                print(f"  Processed {processed}/{total_images}")
 
-        indices = text_to_indices(full_text, char_set)
-        plate_info_f.write(img_name + " " + " ".join(str(idx) for idx in indices) + "\n")
-        plate_text_f.write(f"{img_name}, {full_text}\n")
+    with open(plate_info_path, "w") as f:
+        f.write("\n".join(idx_lines) + "\n")
 
-    plate_info_f.flush()
-    plate_text_f.flush()
-    plate_info_f.close()
-    plate_text_f.close()
-    unread_f.close()
+    with open(plate_text_path, "w") as f:
+        f.write("\n".join(txt_lines) + "\n")
 
-    final_count = sum(1 for _ in open(plate_info_path))
-    print(f"Done. Total entries: {final_count}/{total}")
+    print(f"Done. Wrote {len(idx_lines)} entries to {plate_info_path}")
+    print(f"  and {len(txt_lines)} entries to {plate_text_path}")
+    print(f"Failed/no detection: {failed}")
 
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Generate plate_info.txt (unified)")
-    parser.add_argument("dataroot", help="Path to dataset root (contains train/{sharp,blur})")
-    parser.add_argument("--charset", default="VN", choices=["VN", "CN"], help="Charset: VN or CN (default: VN)")
-    parser.add_argument("--use-gpu", type=lambda x: x.lower() == "true", default=True)
-    parser.add_argument("--gpu-id", type=int, default=0)
-    parser.add_argument("--no-resume", action="store_true", help="Disable resume mode")
-    args = parser.parse_args()
-
-    for split in ["train", "test"]:
-        print(f"\n=== Processing {split} ===")
-        process_split(
-            split, args.dataroot,
-            charset=args.charset,
-            use_gpu=args.use_gpu,
-            gpu_id=args.gpu_id,
-            resume=not args.no_resume,
-        )
+    dataroot = "dataset/quan_lp_dataset"
+    process_all(dataroot)
