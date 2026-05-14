@@ -14,7 +14,7 @@
       {
         "hooks": [
           {
-            "command": "git rev-parse --git-dir >/dev/null 2>&1 && code-review-graph update --skip-flows --repo \"/Users/logan/Developer/vibes/WORK/LIPLA/LPDGAN\" || true",
+            "command": "git rev-parse --git-dir \u003e/dev/null 2\u003e\u00261 \u0026\u0026 code-review-graph update --skip-flows --repo \"/Users/logan/Developer/vibes/WORK/LIPLA/LPDGAN\" || true",
             "timeout": 30,
             "type": "command"
           }
@@ -47,7 +47,7 @@
       {
         "hooks": [
           {
-            "command": "git rev-parse --git-dir >/dev/null 2>&1 && code-review-graph status --repo \"/Users/logan/Developer/vibes/WORK/LIPLA/LPDGAN\" || echo 'Not a git repo, skipping'",
+            "command": "git rev-parse --git-dir \u003e/dev/null 2\u003e\u00261 \u0026\u0026 code-review-graph status --repo \"/Users/logan/Developer/vibes/WORK/LIPLA/LPDGAN\" || echo 'Not a git repo, skipping'",
             "timeout": 10,
             "type": "command"
           }

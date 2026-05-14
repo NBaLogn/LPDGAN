@@ -60,7 +60,10 @@ for variant in ["sharp", "blur"]:
         for variant, _, filename, img_path in images:
             link_name = filename  # just the filename, no LPBlur/blur/sharp prefix
             target = os.path.relpath(img_path, dst)
-            (dst / link_name).symlink_to(target)
+            link = dst / link_name
+            if link.exists() or link.is_symlink():
+                link.unlink()
+            link.symlink_to(target)
 
     symlink_lpblur(lp_train, "train", variant)
     symlink_lpblur(lp_test,  "test",  variant)
