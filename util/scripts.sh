@@ -1,34 +1,24 @@
-mv test/blur_cctv cctv/test/blur
-mv train/blur_cctv cctv/train/blur
-mv val/blur_cctv cctv/val/blur
+#!/bin/bash
+# Dataset setup + synthesis driver.
+#
+# Sets up train/test symlinks so the LPBlur and quan_lp datasets share the
+# `<root>/<split>/{sharp,blur}` layout expected by data/LPBlur_dataset.py,
+# then runs the kernel-bank-based blur synthesis on quan_lp.
 
-mv test/blur_dashcam dashcam/test/blur
-mv train/blur_dashcam dashcam/train/blur
-mv val/blur_dashcam dashcam/val/blur
+set -e
 
-mv test/blur_dual dual/test/blur
-mv train/blur_dual dual/train/blurr
-mv val/blur_dual dual/val/blur
+# LPBlur: flat -> train/test split via symlinks. The bank builder uses a
+# hash-based holdout internally for validation; train/test point at the same
+# flat data here for the dataset loader.
+ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/sharp /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/train/sharp
+ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/blur  /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/train/blur
 
+ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/sharp /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/test/sharp
+ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/blur  /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/test/blur
 
+# quan_lp: GT -> sharp symlinks for train/test splits.
+ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/GT /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/train/sharp
+ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/GT /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/test/sharp
 
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/test/sharp /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/cctv/test/sharp
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/train/sharp /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/cctv/train/sharp
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/val/sharp /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/cctv/val/sharp
-
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/test/sharp /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dashcam/test/sharp
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/train/sharp /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dashcam/train/sharp
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/val/sharp /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dashcam/val/sharp
-
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/test/sharp /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dual/test/sharp
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/train/sharp /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dual/train/sharp
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/val/sharp /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/dual/val/sharp
-
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/sharp /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/train/sharp
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/blur /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/train/blur
-
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/sharp /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/test/sharp
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/blur /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/test/blur
-
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/GT /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/train/sharp
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/GT /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/test/sharp
+# Generate blurred plates for quan_lp using the LPBlur-derived kernel bank.
+uvr util/apply_disk_blur_mod.py /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp
