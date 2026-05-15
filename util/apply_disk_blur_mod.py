@@ -98,7 +98,7 @@ def lpblur_pipeline(
 ) -> np.ndarray:
     """Synthesise a blurred plate image by sampling a recovered LPBlur kernel.
 
-    `img` is a uint8 H×W×3 RGB array. Returns uint8 H×W×3 (or target_size if set).
+    `img` is a uint8 HxWx3 RGB array. Returns uint8 HxWx3 (or target_size if set).
     """
     if bank_path is None:
         bank_path = Path(__file__).parent / 'lpblur_kernel_bank.npz'

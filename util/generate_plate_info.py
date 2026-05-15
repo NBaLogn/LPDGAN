@@ -123,6 +123,6 @@ def process_all(dataroot):
 
 
 if __name__ == "__main__":
-    dataroot = "dataset/LPBlur"
-    # dataroot = "dataset/quan_lp_dataset"
+    # dataroot = "dataset/LPBlur"
+    dataroot = "dataset/quan_lp"
     process_all(dataroot)
