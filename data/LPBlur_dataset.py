@@ -46,13 +46,13 @@ class LPBlurDataset(Dataset):
     def __getitem__(self, idx):
         blur_image = Image.open(self.blur[idx])
         sharp_image = Image.open(self.sharp[idx])
-        blur_image = np.array(blur_image)
-        sharp_image = np.array(sharp_image)
+        blur_np = np.array(blur_image)
+        sharp_np = np.array(sharp_image)
 
-        blur_image, sharp_image = self.transform_fn(blur_image, sharp_image)
-        blur_image1, sharp_image1 = self.transform_fn1(blur_image, sharp_image)
-        blur_image2, sharp_image2 = self.transform_fn2(blur_image, sharp_image)
-        blur_image3, sharp_image3 = self.transform_fn3(blur_image, sharp_image)
+        blur_image, sharp_image = self.transform_fn(blur_np, sharp_np)
+        blur_image1, sharp_image1 = self.transform_fn1(blur_np, sharp_np)
+        blur_image2, sharp_image2 = self.transform_fn2(blur_np, sharp_np)
+        blur_image3, sharp_image3 = self.transform_fn3(blur_np, sharp_np)
 
         blur_image, sharp_image = self.normalize_fn(blur_image, sharp_image)
         blur_image1, sharp_image1 = self.normalize_fn(blur_image1, sharp_image1)
@@ -71,10 +71,10 @@ class LPBlurDataset(Dataset):
         if self.opt.mode == 'train':
             plate_info = self.txt[os.path.basename(self.sharp[idx])]
             try:
-                plate_info = np.fromstring(plate_info, sep=' ')
-
+                plate_info = np.array(plate_info.split(), dtype=np.float32)
             except (SyntaxError, ValueError) as e:
-                print(f"Error restoring array: {e}")
+                print(f"Error restoring array for {self.sharp[idx]}: {e}")
+                plate_info = np.zeros(9, dtype=np.float32)
 
             plate_info = torch.from_numpy(plate_info)
 

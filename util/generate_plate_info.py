@@ -66,10 +66,11 @@ def process_all(dataroot):
     total_images = sum(len(imgs) for imgs in splits.values())
     print(f"Total images: {total_images} (train={len(splits.get('train',[]))}, val={len(splits.get('val',[]))}, test={len(splits.get('test',[]))})")
 
-    ocr = PaddleOCR(lang="ch", use_textline_orientation=True)
+    ocr = PaddleOCR(lang="en", use_angle_cls=True)
 
     idx_lines = []
     txt_lines = []
+    unread_lines = []
     failed = 0
     processed = 0
 
@@ -78,14 +79,9 @@ def process_all(dataroot):
         for img_name in images:
             img_path = os.path.join(sharp_dir, img_name)
             try:
-                result = ocr.predict(img_path)
-                if result and len(result) > 0:
-                    rec_res = result[0]
-                    texts = []
-                    if hasattr(rec_res, 'rec_texts'):
-                        texts = rec_res.rec_texts
-                    elif isinstance(rec_res, dict):
-                        texts = rec_res.get('rec_texts', [])
+                result = ocr.ocr(img_path, cls=True)
+                if result and result[0] is not None:
+                    texts = [item[1][0] for item in result[0]]
                     full_text = "".join(texts) if texts else ""
                     if not full_text:
                         failed += 1
@@ -95,6 +91,7 @@ def process_all(dataroot):
                     full_text = "#" * 21
             except Exception as e:
                 print(f"  Error {img_name}: {e}")
+                unread_lines.append(f"{img_name} {e}")
                 failed += 1
                 full_text = "#" * 21
 
@@ -114,11 +111,18 @@ def process_all(dataroot):
     with open(plate_text_path, "w") as f:
         f.write("\n".join(txt_lines) + "\n")
 
+    if unread_lines:
+        unread_path = os.path.join(dataroot, "plate_info_unread.txt")
+        with open(unread_path, "w") as f:
+            f.write("\n".join(unread_lines) + "\n")
+
     print(f"Done. Wrote {len(idx_lines)} entries to {plate_info_path}")
     print(f"  and {len(txt_lines)} entries to {plate_text_path}")
     print(f"Failed/no detection: {failed}")
+    print(f"Unreadable files: {len(unread_lines)}")
 
 
 if __name__ == "__main__":
-    dataroot = "dataset/quan_lp_dataset"
+    dataroot = "dataset/LPBlur"
+    # dataroot = "dataset/quan_lp_dataset"
     process_all(dataroot)

@@ -30,5 +30,5 @@ ln -s /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/blur /mnt/data/nblong-t04/LPDGA
 ln -s /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/sharp /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/test/sharp
 ln -s /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/blur /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/test/blur
 
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/GT /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/sharp
-ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/GT /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/blur
+ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/GT /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/train/sharp
+ln -s /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/GT /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/test/sharp

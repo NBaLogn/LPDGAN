@@ -57,22 +57,15 @@ def add_gaussian_noise(img: np.ndarray, sigma: float = 10) -> np.ndarray:
 def _apply_barrel_distortion(img: np.ndarray) -> np.ndarray:
     """Simulate wide-angle lens barrel/pincushion distortion."""
     h, w = img.shape[:2]
-    k = np.random.uniform(0.0, 0.15)
-    map_x = np.zeros(w, dtype=np.float32)
-    map_y = np.zeros(h, dtype=np.float32)
+    k = np.random.uniform(-0.15, 0.15)
     cx, cy = w / 2, h / 2
-    for i in range(w):
-        xn = (i - cx) / cx
-        r2 = xn ** 2
-        xn_new = xn * (1 + k * r2)
-        map_x[i] = np.clip(cx + xn_new * cx, 0, w - 1)
-    for j in range(h):
-        yn = (j - cy) / cy
-        r2 = yn ** 2
-        yn_new = yn * (1 + k * r2)
-        map_y[j] = np.clip(cy + yn_new * cy, 0, h - 1)
-    map_x = np.repeat(map_x[None, :], h, axis=0)
-    map_y = np.repeat(map_y[:, None], w, axis=1)
+    j, i = np.mgrid[:h, :w].astype(np.float32)
+    xn = (i - cx) / cx
+    yn = (j - cy) / cy
+    r2 = xn ** 2 + yn ** 2
+    factor = 1.0 + k * r2
+    map_x = np.clip(cx + xn * factor * cx, 0, w - 1).astype(np.float32)
+    map_y = np.clip(cy + yn * factor * cy, 0, h - 1).astype(np.float32)
     return cv2.remap(img, map_x, map_y, cv2.INTER_LINEAR,
                      borderMode=cv2.BORDER_REFLECT)
 
@@ -88,7 +81,7 @@ def cctv_pipeline(
 
     Degrades quality through:
       1. Circular disk blur (base defocus from cheap lens)
-      2. Fixed viewpoint offset (mounted camera crop)
+      2. Mounted-camera offset (random crop/shift per call)
       3. Barrel/pincushion distortion (wide-angle CCTV lens)
       4. Lower resolution (CCTV typically 480p-720p)
       5. Strong JPEG compression (CCTV uses low bitrate)
@@ -104,7 +97,7 @@ def cctv_pipeline(
     # 1. Base disk blur
     img = blur_image(img, radius)
 
-    # 2. Fixed viewpoint offset (slight crop/shift to simulate mounted camera)
+    # 2. Mounted-camera offset (small random crop/shift)
     shift_x = int(w * np.random.uniform(0.0, 0.05))
     shift_y = int(h * np.random.uniform(0.0, 0.05))
     if shift_x or shift_y:
@@ -116,9 +109,10 @@ def cctv_pipeline(
 
     # 4. Lower resolution (CCTV 480p/720p simulation)
     scale = np.random.uniform(0.3, 0.7)
-    new_w, new_h = int(w * scale), int(h * scale)
+    new_w = max(1, int(w * scale))
+    new_h = max(1, int(h * scale))
     img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
-    img = cv2.resize(img, (w, h), interpolation=cv2.INTER_LANCZOS4)
+    img = cv2.resize(img, (w, h), interpolation=cv2.INTER_LINEAR)
 
     # 5. Strong JPEG compression
     img = jpeg_compress(img, quality=np.random.randint(40, 75))
@@ -146,22 +140,41 @@ def cctv_pipeline(
 
 
 def _apply_interlace(img: np.ndarray) -> np.ndarray:
-    """Simulate interlaced video (every other row is delayed)."""
-    frame = img.astype(float)
-    for row in range(0, frame.shape[0], 2):
-        frame[row, 1:] = img[row, :-1]
-    return np.clip(frame, 0, 255).astype(np.uint8)
+    """Simulate interlaced field weave: comb teeth on moving content."""
+    h, w = img.shape[:2]
+    motion_px = int(np.random.randint(-4, 5))  # simulated inter-field motion
+    if motion_px == 0:
+        return img
+    out = img.copy()
+    # Shift the odd field (rows 1, 3, 5, ...) horizontally by motion_px
+    odd = img[1::2]
+    shifted = np.zeros_like(odd)
+    if motion_px > 0:
+        shifted[:, motion_px:] = odd[:, :-motion_px]
+        shifted[:, :motion_px] = odd[:, :1]  # edge replicate
+    else:
+        m = -motion_px
+        shifted[:, :-m] = odd[:, m:]
+        shifted[:, -m:] = odd[:, -1:]  # edge replicate
+    out[1::2] = shifted
+    return out
 
 
 def _apply_night_noise(img: np.ndarray) -> np.ndarray:
-    """Simulate low-light noise + IR illumination (grayscale shift)."""
+    """Simulate low-light noise and IR illumination (desaturated near-mono)."""
     sigma = np.random.uniform(15, 35)
-    noisy = add_gaussian_noise(img, sigma=sigma)
-    noisy_f = noisy.astype(float)
-    noisy_f[:, :, 2] = np.clip(noisy_f[:, :, 2] * np.random.uniform(1.1, 1.5), 0, 255)
-    noisy_f[:, :, 0] = np.clip(noisy_f[:, :, 0] * np.random.uniform(0.5, 0.8), 0, 255)
-    noisy_f[:, :, 1] = np.clip(noisy_f[:, :, 1] * np.random.uniform(0.8, 1.0), 0, 255)
-    return np.clip(noisy_f, 0, 255).astype(np.uint8)
+    # Compute luma (Rec. 601 weights work fine on RGB input)
+    img_f = img.astype(float)
+    luma = (0.299 * img_f[:, :, 0] + 0.587 * img_f[:, :, 1] + 0.114 * img_f[:, :, 2])
+    luma3 = np.repeat(luma[:, :, None], 3, axis=2)
+    # Strong desaturation toward luma; alpha=0 keeps colour, alpha=1 is pure gray
+    alpha = np.random.uniform(0.7, 0.95)
+    desat = img_f * (1 - alpha) + luma3 * alpha
+    # Optional faint tint (small; keep R≈G≈B intent)
+    tint = np.random.uniform(-5, 5, size=3)
+    desat = desat + tint[None, None, :]
+    noisy = desat + np.random.randn(*desat.shape) * sigma
+    return np.clip(noisy, 0, 255).astype(np.uint8)
 
 
 def _apply_grainy_mono(img: np.ndarray) -> np.ndarray:
@@ -194,7 +207,7 @@ def dual_pipeline(
     # ── shared base blur ──────────────────────────────────────────
     img = blur_image(img, radius)
 
-    # ── dashcam effects (50% probability each) ───────────────────
+    # ── dashcam effects (probabilistic) ───────────────────
     if np.random.random() < 0.5:
         img = _apply_motion_blur(img)
 
@@ -213,7 +226,7 @@ def dual_pipeline(
     if np.random.random() < 0.3:
         img = _apply_headlight_glare(img)
 
-    # ── CCTV effects (50% probability each) ─────────────────────
+    # ── CCTV effects (probabilistic) ─────────────────────
     if np.random.random() < 0.4:
         shift_x = int(w * np.random.uniform(0.0, 0.05))
         shift_y = int(h * np.random.uniform(0.0, 0.05))
@@ -226,9 +239,10 @@ def dual_pipeline(
 
     if np.random.random() < 0.5:
         scale = np.random.uniform(0.3, 0.7)
-        new_w, new_h = int(w * scale), int(h * scale)
+        new_w = max(1, int(w * scale))
+        new_h = max(1, int(h * scale))
         img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
-        img = cv2.resize(img, (w, h), interpolation=cv2.INTER_LANCZOS4)
+        img = cv2.resize(img, (w, h), interpolation=cv2.INTER_LINEAR)
 
     if np.random.random() < 0.6:
         img = jpeg_compress(img, quality=np.random.randint(40, 75))
@@ -267,7 +281,7 @@ def dashcam_pipeline(
     Degrades quality through:
       1. Circular disk blur (base blur from windshield lens)
       2. Motion blur from car movement (forward + lateral)
-      3. Rolling shutter distortion (column-wise warp)
+      3. Rolling shutter distortion (row-wise read delay)
       4. Vibration blur (multi-directional micro blur)
       5. Variable exposure (brightness swings)
       6. Dirt/rain on windshield
@@ -321,7 +335,7 @@ def _apply_motion_blur(img: np.ndarray) -> np.ndarray:
     kernel = np.zeros((size * 2 + 1, size * 2 + 1))
     cx = cy = size
     rad = np.deg2rad(angle)
-    for i in range(size):
+    for i in range(-size, size + 1):
         x = int(round(cx + i * np.cos(rad)))
         y = int(round(cy + i * np.sin(rad)))
         if 0 <= x < size * 2 + 1 and 0 <= y < size * 2 + 1:
@@ -336,12 +350,11 @@ def _apply_rolling_shutter(img: np.ndarray) -> np.ndarray:
     alpha = np.random.uniform(-0.03, 0.03)
     map_x = np.zeros((h, w), dtype=np.float32)
     map_y = np.zeros((h, w), dtype=np.float32)
+    base = np.arange(w, dtype=np.float32)
     for j in range(h):
         offset = int(j * alpha * w)
         offset = np.clip(offset, -w + 1, w - 1)
-        col_indices = np.arange(w)
-        new_col = np.roll(col_indices, offset)
-        map_x[j, :] = new_col.astype(np.float32)
+        map_x[j, :] = base - offset
         map_y[j, :] = j
     return cv2.remap(img, map_x, map_y, cv2.INTER_LINEAR,
                      borderMode=cv2.BORDER_REFLECT)
@@ -364,8 +377,8 @@ def _apply_vibration_blur(img: np.ndarray) -> np.ndarray:
 def _apply_variable_exposure(img: np.ndarray) -> np.ndarray:
     """Simulate exposure swings (tunnel/sun transitions)."""
     gamma = np.random.choice([
-        np.random.uniform(0.6, 0.9),   # overbright
-        np.random.uniform(1.2, 1.6),  # underexposed
+        np.random.uniform(0.6, 0.9),   # darker (underexposed)
+        np.random.uniform(1.2, 1.6),   # brighter (overbright)
     ])
     table = np.array([((i / 255.0) ** (1.0 / gamma)) * 255
                       for i in range(256)], dtype=np.uint8)
@@ -386,35 +399,29 @@ def _apply_variable_exposure(img: np.ndarray) -> np.ndarray:
 
 
 def _apply_dirt_rain(img: np.ndarray) -> np.ndarray:
-    """Simulate dirt and raindrops on windshield.
-
-    Positions use random.Random() with no seed for system-entropy
-    unrepeatable placement.
-    """
-    import random as _random
-
+    """Simulate dirt and raindrops on windshield."""
     h, w = img.shape[:2]
     dirty = img.astype(float)
 
-    # Dirt smears — small, soft elliptical patches (system entropy)
-    for _ in range(_random.randint(2, 5)):
-        ecx = _random.randint(w // 8, 7 * w // 8)
-        ecy = _random.randint(h // 8, 7 * h // 8)
-        rx = _random.randint(w // 20, w // 8)
-        ry = _random.randint(h // 20, h // 8)
+    # Dirt smears — small, soft elliptical patches
+    for _ in range(np.random.randint(2, 6)):
+        ecx = np.random.randint(w // 8, 7 * w // 8 + 1)
+        ecy = np.random.randint(h // 8, 7 * h // 8 + 1)
+        rx = np.random.randint(w // 20, w // 8 + 1)
+        ry = np.random.randint(h // 20, h // 8 + 1)
         y, x = np.ogrid[:h, :w]
         dist_sq = ((x - ecx) ** 2 / rx ** 2 + (y - ecy) ** 2 / ry ** 2)
         mask = np.exp(-dist_sq * 2)[..., None]
-        dirty = dirty * (1 - mask * _random.uniform(0.2, 0.5))
+        dirty = dirty * (1 - mask * np.random.uniform(0.2, 0.5))
 
-    # Raindrops (tiny bright refraction spots — system entropy)
-    for _ in range(_random.randint(5, 12)):
-        cx = _random.randint(0, w)
-        cy = _random.randint(0, h)
-        r = _random.randint(1, 4)
-        y, x = np.ogrid[:h, :w]
+    # Raindrops (tiny bright refraction spots)
+    drop_bg = cv2.blur(dirty, (7, 7), borderType=cv2.BORDER_REFLECT)
+    y, x = np.ogrid[:h, :w]
+    for _ in range(np.random.randint(5, 13)):
+        cx = np.random.randint(0, w + 1)
+        cy = np.random.randint(0, h + 1)
+        r = np.random.randint(1, 5)
         drop_mask = ((x - cx) ** 2 + (y - cy) ** 2) <= r ** 2
-        drop_bg = cv2.blur(dirty, (7, 7), borderType=cv2.BORDER_REFLECT)
         drop_mask_3d = drop_mask[..., None]
         dirty = np.where(drop_mask_3d, dirty * 0.6 + drop_bg * 0.4, dirty)
 
@@ -495,7 +502,7 @@ def main():
     target_size = tuple(args.target_size) if args.target_size else None
 
     for img_path in sorted(args.input_dir.glob('*.jpg')):
-        img = np.array(Image.open(img_path))
+        img = np.array(Image.open(img_path).convert('RGB'))
         augmented = augment_pipeline(
             img,
             mode=args.mode,
