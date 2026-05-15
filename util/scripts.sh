@@ -149,9 +149,37 @@ uv run main.py --mode train --gpu_ids "0" \
 
 uv run main.py \
   --mode train \
-  --gpu_ids "0,1" \
+  --gpu_ids "0" \
   --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur \
   --name LPBlur \
-  --batch_size 48 \
-  --num_worker 16 \
-  --num_threads 16 
+  --batch_size 16 \
+  --num_worker 8 \
+  --num_threads 8 
+
+uv run inference.py \
+-i /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/blur \
+-o results/LPBlur/inference/LPBlur \
+-c checkpoints/LPBlur
+
+uv run inference.py \
+-i /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/test/blur \
+-o results/LPBlur/inference/LPBlur \
+-c checkpoints/LPBlur
+
+uv run inference.py \
+-i /mnt/data/nblong-t04/LPDGAN/dataset/teams/test/blur \
+-o results/LPBlur/inference/team \
+-c checkpoints/LPBlur
+
+uv run main.py --mode test \
+--name LPBlur \
+--dataroot /mnt/data/nblong-t04/LPDGAN/dataset/teams
+
+uv run main.py --mode test \
+--name LPBlur \
+--dataroot /mnt/data/nblong-t04/LPDGAN/dataset/adnl
+
+uv run inference.py \
+-i /mnt/data/nblong-t04/LPDGAN/dataset/teams/test/blur \
+-o results/LPBlur/inference/team \
+-c checkpoints/LPBlur
