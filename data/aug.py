@@ -13,8 +13,8 @@ def get_transforms(size):
             }
 
     aug_fn = augs['geometric']
-    crop_fn = {'random': albu.RandomCrop(size, size, always_apply=True),
-               'center': albu.CenterCrop(size, size, always_apply=True)}['random']
+    crop_fn = {'random': albu.RandomCrop(height=size[0], width=size[1], p=1.0),
+               'center': albu.CenterCrop(height=size[0], width=size[1], p=1.0)}['random']
 
     effect = albu.OneOf([albu.MotionBlur(blur_limit=21, always_apply=True),
                          albu.RandomRain(always_apply=True),
@@ -24,7 +24,7 @@ def get_transforms(size):
 
     resize = albu.Resize(height=size[0], width=size[1])
 
-    pipeline = albu.Compose([resize], additional_targets={'target': 'image'})
+    pipeline = albu.Compose([resize], additional_targets={'target': 'image'}, is_check_shapes=False)
 
     pipforblur = albu.Compose([effect])
 
@@ -45,7 +45,7 @@ def get_transforms_fortest(size):
                          albu.RandomSnow(always_apply=True)])
     motion_blur = albu.MotionBlur(blur_limit=51, always_apply=True)
 
-    pipeline = albu.Compose([resize], additional_targets={'target': 'image'})
+    pipeline = albu.Compose([resize], additional_targets={'target': 'image'}, is_check_shapes=False)
 
     def process(a, b):
         r = pipeline(image=a, target=b)

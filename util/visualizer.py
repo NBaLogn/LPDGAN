@@ -2,7 +2,8 @@ import numpy as np
 import os
 import ntpath
 import time
-from . import util, html
+from . import util
+from . import html_utils as html
 
 def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256):
     """Save images to the disk.

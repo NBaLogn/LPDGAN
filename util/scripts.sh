@@ -16,9 +16,11 @@ ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/blur  /mnt/data/nblong-t04/LPD
 ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/sharp /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/test/sharp
 ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/blur  /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/test/blur
 
-# quan_lp: GT -> sharp symlinks for train/test splits.
-ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/GT /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/train/sharp
-ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/GT /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp/test/sharp
-
 # Generate blurred plates for quan_lp using the LPBlur-derived kernel bank.
 uvr util/apply_disk_blur_mod.py /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp
+
+uv run main.py --mode train --gpu_ids "0" \
+  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp \
+  --name LPBlur --batch_size 16 \
+  --num_worker 8 --num_threads 8 2>&1 | tee train-quanlp-200.txt
+
