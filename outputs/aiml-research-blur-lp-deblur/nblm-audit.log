@@ -1,0 +1,47 @@
+=== NBLM AUDIT LOG ===
+Task: Blurred License Plate Deblurring & Recognition
+Notebook ID: 437706a9-c9f9-4549-94ee-accad48bcac7
+Notebook Title: AIML-LP-Deblur-20260519
+Date: 2026-05-19
+
+INGESTED SOURCES (count: 20):
+ 1. [OK] arxiv.org/abs/2404.13677 — LPDGAN paper
+ 2. [OK] arxiv.org/abs/2510.17330 — CharDiff-LP paper
+ 3. [OK] arxiv.org/abs/2508.14797 — MF-LPR2 paper
+ 4. [OK] arxiv.org/abs/2509.08392 — VRAE paper
+ 5. [OK] github.com/swz30/Restormer — Restormer repo
+ 6. [OK] github.com/megvii-research/NAFNet — NAFNet repo
+ 7. [OK] arxiv.org/abs/2505.06393 — UFPR-SR-Plates paper
+ 8. [OK] arxiv.org/abs/2403.15466 — Real-ESRGAN for LP paper
+ 9. [OK] huggingface.co/NYUAD-ComNets/VehiclePaliGemma — VehiclePaliGemma
+10. [OK] github.com/ankandrew/fast-plate-ocr — fast-plate-ocr repo
+11. [OK] github.com/ankandrew/fast-alpr — fast-alpr repo
+12. [OK] arxiv.org/abs/2408.15103 — Layout-Aware LP SR paper
+13. [OK] github.com/haoyGONG/LPDGAN — LPDGAN repo
+14. [OK] github.com/swz30/MPRNet — MPRNet repo
+15. [OK] github.com/subeeshvasu/Awesome-Deblurring — Awesome Deblur list
+16. [OK] github.com/williamcfrancis/Blind-Motion-Deblurring-for-Legible-License-Plates
+17. [OK] github.com/PaddlePaddle/PaddleOCR — PaddleOCR repo
+18. [OK] github.com/nhanth301/License-Plate-Detection-and-Recognition-with-Image-Enhancement
+19. [OK] github.com/aiigoradam/LPR-project — synthetic LP degradation
+20. [OK] github.com/SUSI-Lab/Awesome-GAN-based-Image-Restoration
+
+QUERIES (count: 12, quota used: 12/50):
+Q01 [T1-LPDGAN]  — session=b436eb1a — LPBlur dataset, architecture details
+Q02 [T1-CharDiff] — session=b436eb1a — 28.3% CER reduction [NBLM_ONLY]
+Q03 [T1-MF-LPR2]  — session=b436eb1a — 86.44% rec acc [VERIFIED]
+Q04 [T1-VRAE]     — session=b436eb1a — ~20% PSNR improvement [VERIFIED]
+Q05 [T2-HW]       — session=b436eb1a — Batch size=4 for LPDGAN, rest NOT_FOUND
+Q06 [T3-License]  — session=b436eb1a — License info for 11 repos
+Q07 [T1-Deblur]   — session=b436eb1a — NAFNet PSNR 33.71 GoPro [VERIFIED]
+Q08 [T1-LP-SR]    — session=b436eb1a — UFPR 44.7% rec acc [VERIFIED]
+Q09 [T4-Install]  — session=b436eb1a — Install commands for top 5 repos
+Q10 [T5-Limits]   — session=b436eb1a — Comprehensive failure modes
+Q11 [T6-Cross-LP] — session=b436eb1a — No cross-ref on LPBlur
+Q12 [T6-Cross-G]  — session=b436eb1a — GoPro: NAFNet only with explicit numbers
+
+VERIFICATION SUMMARY:
+- Total metrics extracted: 24
+- VERIFIED: 8 (33%)
+- NBLM_ONLY: 12 (50%)
+- HALLUCINATED (dropped): 4 (17%)

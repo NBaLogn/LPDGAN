@@ -1,0 +1,31 @@
+{
+  "topic": "dataset-symlinks",
+  "date": "2026-05-13",
+  "commits": [
+    {"hash": "5fd3d1d", "subject": "feat: add symlink script for adnl and LPBlur datasets with 90/10 train/test split"},
+    {"hash": "dace65d", "subject": "docs: add plans for dataset federated split"},
+    {"hash": "145c265", "subject": "fix(scripts): remove existing symlink before creating new one", "date": "2026-05-14", "note": "follow-up next day"}
+  ],
+  "files": {
+    "added": [
+      "scripts/symlink_and_split_adnl.py",
+      "scripts/symlink_adnl.sh"
+    ],
+    "modified": [
+      "scripts/symlink_and_split_adnl.py"
+    ]
+  },
+  "params": {
+    "random_seed": 42,
+    "train_ratio": 0.9,
+    "test_ratio": 0.1,
+    "datasets": ["adnl", "LPBlur"],
+    "adnl_sources": ["andan", "ninhloc"],
+    "lpblur_variants": ["sharp", "blur"]
+  },
+  "risks": [
+    "SRC_ROOT is absolute machine-local path",
+    "LPBlur sharp/blur split independently — pairing not guaranteed",
+    "No CLI args"
+  ]
+}

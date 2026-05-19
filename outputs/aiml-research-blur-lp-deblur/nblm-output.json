@@ -1,0 +1,153 @@
+{
+  "notebook_id": "437706a9-c9f9-4549-94ee-accad48bcac7",
+  "notebook_title": "AIML-LP-Deblur-20260519",
+  "papers": [
+    {
+      "title": "LPDGAN — A Dataset and Model for Realistic License Plate Deblurring",
+      "url": "https://arxiv.org/abs/2404.13677",
+      "venue": "IJCAI 2024",
+      "metrics": [
+        {"name": "PSNR improvement", "value": "Outperforms SOTA motion deblur methods", "status": "NBLM_ONLY"},
+        {"name": "LP recognition accuracy improvement", "value": "21.24%", "status": "NBLM_ONLY"}
+      ],
+      "hw_specs": {"gpu": "NOT_FOUND", "batch_size": 4},
+      "dataset": "LPBlur (10,288 paired sharp-blur images)",
+      "architecture": "Feature Fusion + Text Reconstruction + Partition Discriminator (Swin-Unet+pix2pix base)",
+      "limitations": "Synthetic methods unproven in real-world scenarios"
+    },
+    {
+      "title": "CharDiff-LP — Diffusion Model with Character-Level Guidance",
+      "url": "https://arxiv.org/abs/2510.17330",
+      "venue": "arXiv 2025",
+      "metrics": [
+        {"name": "CER relative reduction", "value": "28.3%", "status": "NBLM_ONLY"}
+      ],
+      "hw_specs": {"gpu": "NOT_FOUND"},
+      "dataset": "Roboflow-LP",
+      "architecture": "Diffusion + CHARM attention + OCR priors",
+      "limitations": "Hallucinates digits in weak signal areas. Needs external segmentation + OCR modules"
+    },
+    {
+      "title": "MF-LPR² — Multi-Frame LP Restoration & Recognition",
+      "url": "https://arxiv.org/abs/2508.14797",
+      "venue": "CVIU 2025",
+      "metrics": [
+        {"name": "Recognition accuracy", "value": "86.44%", "status": "VERIFIED"},
+        {"name": "Single-frame baseline", "value": "14.04%", "status": "NBLM_ONLY"},
+        {"name": "Best multi-frame baseline", "value": "82.55%", "status": "NBLM_ONLY"}
+      ],
+      "hw_specs": {"gpu": "NOT_FOUND"},
+      "dataset": "RLPR (200 sequences)",
+      "architecture": "Optical flow alignment + temporal aggregation",
+      "limitations": "Dependent on optical flow accuracy. Generative models introduce artifacts"
+    },
+    {
+      "title": "VRAE — Vertical Residual Autoencoder for LP",
+      "url": "https://arxiv.org/abs/2509.08392",
+      "venue": "arXiv 2025",
+      "metrics": [
+        {"name": "PSNR improvement vs AE", "value": "~20%", "status": "VERIFIED"},
+        {"name": "NMSE reduction vs AE", "value": "~50%", "status": "VERIFIED"},
+        {"name": "SSIM increase vs AE", "value": "+1%", "status": "VERIFIED"},
+        {"name": "Param increase", "value": "~1%", "status": "VERIFIED"}
+      ],
+      "hw_specs": {"inference": "Fast realtime"},
+      "dataset": "Traffic surveillance LP images",
+      "architecture": "Vertical residual blocks + auxiliary input-aware features",
+      "limitations": "Performance drops when LP occupies small region in vehicle image"
+    },
+    {
+      "title": "UFPR-SR-Plates + LCDNet",
+      "url": "https://arxiv.org/abs/2505.06393",
+      "venue": "arXiv 2025",
+      "metrics": [
+        {"name": "Recognition acc (LR raw)", "value": "1.7%", "status": "VERIFIED"},
+        {"name": "Recognition acc (after SR)", "value": "31.1%", "status": "VERIFIED"},
+        {"name": "Recognition acc (MVCP fusion 5 frames)", "value": "44.7%", "status": "VERIFIED"}
+      ],
+      "hw_specs": {"gpu": "NOT_FOUND"},
+      "dataset": "UFPR-SR-Plates (10,000 tracks, 100,000 paired LR/HR)",
+      "architecture": "LCDNet (Layout-Aware Character-Driven) + GAN + deformable convolutions",
+      "limitations": "SR alone limited to 31% acc. Needs multi-frame fusion for 44.7%"
+    }
+  ],
+  "repos": [
+    {
+      "owner": "haoyGONG",
+      "name": "LPDGAN",
+      "url": "https://github.com/haoyGONG/LPDGAN",
+      "license": "UNKNOWN (404)",
+      "stars": 34,
+      "last_commit": "~2 years ago",
+      "has_pretrained": false,
+      "install_cmd": "pip install -r requirements.txt",
+      "setup_files": ["requirements.txt"]
+    },
+    {
+      "owner": "swz30",
+      "name": "Restormer",
+      "url": "https://github.com/swz30/Restormer",
+      "license": "MIT",
+      "stars": 2500,
+      "last_commit": "7 months ago",
+      "has_pretrained": true,
+      "install_cmd": "See INSTALL.md",
+      "setup_files": ["INSTALL.md"]
+    },
+    {
+      "owner": "megvii-research",
+      "name": "NAFNet",
+      "url": "https://github.com/megvii-research/NAFNet",
+      "license": "NOT_FOUND (likely MIT-like)",
+      "stars": 3000,
+      "last_commit": "2 years ago",
+      "has_pretrained": true,
+      "install_cmd": "Based on BasicSR",
+      "setup_files": ["requirements.txt"],
+      "gopro_psnr": 33.71,
+      "gopro_ssim": 0.9668
+    },
+    {
+      "owner": "ankandrew",
+      "name": "fast-plate-ocr",
+      "url": "https://github.com/ankandrew/fast-plate-ocr",
+      "license": "MIT",
+      "stars": 565,
+      "last_commit": "2 months ago",
+      "has_pretrained": true,
+      "install_cmd": "pip install fast-plate-ocr[onnx]",
+      "setup_files": ["pyproject.toml"]
+    },
+    {
+      "owner": "ankandrew",
+      "name": "fast-alpr",
+      "url": "https://github.com/ankandrew/fast-alpr",
+      "license": "MIT",
+      "stars": 534,
+      "last_commit": "2 months ago",
+      "has_pretrained": true,
+      "install_cmd": "pip install fast-alpr[onnx]",
+      "setup_files": ["pyproject.toml"]
+    },
+    {
+      "owner": "PaddlePaddle",
+      "name": "PaddleOCR",
+      "url": "https://github.com/PaddlePaddle/PaddleOCR",
+      "license": "Apache-2.0",
+      "stars": 78100,
+      "last_commit": "Yesterday",
+      "has_pretrained": true,
+      "install_cmd": "pip install paddlepaddle paddleocr",
+      "setup_files": ["requirements.txt", "Dockerfile"]
+    }
+  ],
+  "cross_references": [
+    {"dataset": "LPBlur", "papers": ["LPDGAN only — no cross-ref available"], "status": "NO_CROSS_REF"},
+    {"dataset": "GoPro", "papers": ["NAFNet PSNR 33.71 [VERIFIED]", "MPRNet +0.81 dB gain [NBLM_ONLY]", "Restormer SOTA [NBLM_ONLY]"], "status": "PARTIAL"}
+  ],
+  "audit": {
+    "queries_used": 12,
+    "quota_remaining": 38,
+    "notebook_id": "437706a9-c9f9-4549-94ee-accad48bcac7"
+  }
+}
