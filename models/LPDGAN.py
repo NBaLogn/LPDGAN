@@ -77,8 +77,11 @@ class LPDGAN(nn.Module):
         self.real_B3 = input['B3'].to(self.device)
         self.image_paths = input['A_paths']
 
-        if self.mode == 'train':
+        if self.mode == 'train' and 'plate_info' in input:
             self.plate_info = input['plate_info'].to(self.device)
+            self.has_plate_info = True
+        else:
+            self.has_plate_info = False
 
     def forward(self):
         self.fake_B, self.fake_B1, self.fake_B2, self.fake_B3, self.plate1, self.plate2 = self.netG(self.real_A,
@@ -200,10 +203,13 @@ class LPDGAN(nn.Module):
 
         self.loss_P_loss = (loss_P_loss + loss_P_loss1 + loss_P_loss2 + loss_P_loss3) / 4 * 0.01
 
-        self.loss_PlateNum_L1 = (self.criterionL1(self.plate1, self.plate_info) + self.criterionL1(self.plate2,
-                                                                                                   self.plate_info)) / 2 * 0.01
-
-        self.loss_G = self.loss_G_GAN + self.loss_G_s + self.loss_G_L1 + self.loss_P_loss + 0.1 * self.loss_PlateNum_L1
+        if self.has_plate_info:
+            self.loss_PlateNum_L1 = (self.criterionL1(self.plate1, self.plate_info) + self.criterionL1(self.plate2,
+                                                                                                       self.plate_info)) / 2 * 0.01
+            self.loss_G = self.loss_G_GAN + self.loss_G_s + self.loss_G_L1 + self.loss_P_loss + 0.1 * self.loss_PlateNum_L1
+        else:
+            self.loss_PlateNum_L1 = torch.tensor(0.0, device=self.device)
+            self.loss_G = self.loss_G_GAN + self.loss_G_s + self.loss_G_L1 + self.loss_P_loss
         self.loss_G.backward()
 
     def optimize_parameters(self):
