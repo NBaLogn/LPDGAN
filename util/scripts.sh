@@ -19,8 +19,11 @@ ln -sf /mnt/data/nblong-t04/LPDGAN/dataset/LPBlur/blur  /mnt/data/nblong-t04/LPD
 # Generate blurred plates for quan_lp using the LPBlur-derived kernel bank.
 uvr util/apply_disk_blur_mod.py /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp
 
+# Split the quan_lp dataset into square/rect subsets by plate layout.
+uv run util/split_lp_by_shape.py
+
 uv run main.py --mode train --gpu_ids "0" \
   --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp \
-  --name LPBlur --batch_size 16 \
+  --name quan_lp --batch_size 16 \
   --num_worker 8 --num_threads 8 2>&1 | tee train-quanlp-200.txt
 
