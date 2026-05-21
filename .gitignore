@@ -2,6 +2,8 @@ LPBlur
 __pycache__
 checkpoints/LPDGAN/web
 *.pth
+*.pt
+checkpoints/lp_detector/
 .DS_Store
 *.zip
 *.7z

@@ -22,6 +22,13 @@ uvr util/apply_disk_blur_mod.py /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp
 # Split the quan_lp dataset into square/rect subsets by plate layout.
 uv run util/split_lp_by_shape.py
 
+# Crop ADNL full-frame captures and split into square/rect subsets.
+# Produces dataset/adnl_cropped/{square,rect}/{train,test}/sharp/ as real JPEGs.
+uv run util/crop_and_classify_adnl.py \
+  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/adnl \
+  --out /mnt/data/nblong-t04/LPDGAN/dataset/adnl_cropped \
+  --device auto
+
 uv run main.py --mode train --gpu_ids "0" \
   --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp \
   --name quan_lp --batch_size 16 \
