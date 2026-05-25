@@ -23,6 +23,11 @@ os.environ["HOME"] = TMPDIR
 
 from paddleocr import PaddleOCR
 
+
+def make_ocr() -> PaddleOCR:
+    return PaddleOCR(lang="en", use_angle_cls=True)
+
+
 # Western plate character set (33 classes)
 # # (padding), 0-9 (10 digits), 21 letters (A-Z excl I,J,O,Q,W), . (full-stop), - (hyphen)
 CHAR_SET = "#0123456789ABCDEFGHKLMNPRSTUVXYZ"
@@ -66,7 +71,7 @@ def process_all(dataroot):
     total_images = sum(len(imgs) for imgs in splits.values())
     print(f"Total images: {total_images} (train={len(splits.get('train',[]))}, val={len(splits.get('val',[]))}, test={len(splits.get('test',[]))})")
 
-    ocr = PaddleOCR(lang="en", use_angle_cls=True)
+    ocr = make_ocr()
 
     idx_lines = []
     txt_lines = []
