@@ -73,14 +73,34 @@ SPLITS = ("train", "test")
 PLATE_TYPES = ("square", "rect")
 JPEG_QUALITY = 95
 
+# Defaults for false-positive guards. All are overridable via CLI.
+DEFAULT_CONF = 0.5
+DEFAULT_AR_THRESHOLD = 2.0
+DEFAULT_ROW_GAP_FRAC = 0.30
+DEFAULT_MIN_AREA = 2000        # px^2; YOLO boxes smaller than this are noise
+DEFAULT_MIN_AR = 1.0           # crops outside [MIN_AR, MAX_AR] are non-plate
+DEFAULT_MAX_AR = 6.0
+DEFAULT_HARD_RECT_AR = 3.0     # AR >= this -> force rect, skip OCR
+DEFAULT_HARD_SQUARE_AR = 1.3   # AR <= this -> force square, skip OCR
+DEFAULT_OCR_MIN_TEXT_LEN = 3   # drop OCR lines with <3 chars (artifacts)
+DEFAULT_OCR_MIN_CONF = 0.5
+
 
 # ---------------------------------------------------------------------------
 # OCR row-count helpers
 # ---------------------------------------------------------------------------
 
 
-def _extract_polys_v3(result_obj) -> list[np.ndarray]:
-    """Pull rec_polys from a PaddleOCR>=3.x result object."""
+def _extract_polys_v3(
+    result_obj,
+    min_text_len: int = DEFAULT_OCR_MIN_TEXT_LEN,
+    min_conf: float = DEFAULT_OCR_MIN_CONF,
+) -> list[np.ndarray]:
+    """Pull rec_polys from a PaddleOCR>=3.x result object.
+
+    Filters lines whose recognized text fails the min-length / min-conf gate
+    so phantom short-text detections do not inflate the row count.
+    """
     polys: list[np.ndarray] = []
     payload = getattr(result_obj, "json", None)
     if payload is None:
@@ -89,13 +109,23 @@ def _extract_polys_v3(result_obj) -> list[np.ndarray]:
         res = payload.get("res", payload)
     else:
         res = payload
-    raw = res.get("rec_polys") or res.get("dt_polys") or []
-    for p in raw:
+    raw_polys = res.get("rec_polys") or res.get("dt_polys") or []
+    raw_texts = res.get("rec_texts") or []
+    raw_scores = res.get("rec_scores") or []
+    for i, p in enumerate(raw_polys):
+        text = raw_texts[i] if i < len(raw_texts) else ""
+        score = float(raw_scores[i]) if i < len(raw_scores) else 0.0
+        if score < min_conf or len(str(text).strip()) < min_text_len:
+            continue
         polys.append(np.asarray(p, dtype=np.float32))
     return polys
 
 
-def _extract_polys_v2(item) -> list[np.ndarray]:
+def _extract_polys_v2(
+    item,
+    min_text_len: int = DEFAULT_OCR_MIN_TEXT_LEN,
+    min_conf: float = DEFAULT_OCR_MIN_CONF,
+) -> list[np.ndarray]:
     """Pull polys from the legacy PaddleOCR (v2.x) ``[[poly, (text, score)], ...]`` format."""
     polys: list[np.ndarray] = []
     if not item:
@@ -109,7 +139,7 @@ def _extract_polys_v2(item) -> list[np.ndarray]:
         score = text_score[1] if text_score and len(text_score) > 1 else 0.0
         if poly is None or text is None:
             continue
-        if score < 0.5 or len(str(text).strip()) < 2:
+        if score < min_conf or len(str(text).strip()) < min_text_len:
             continue
         polys.append(np.asarray(poly, dtype=np.float32))
     return polys
@@ -131,8 +161,15 @@ def count_rows(polys: list[np.ndarray], crop_h: int, gap_frac: float) -> int:
 class OCRBackend:
     """Thin wrapper that hides PaddleOCR v2 vs v3 differences."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        min_text_len: int = DEFAULT_OCR_MIN_TEXT_LEN,
+        min_conf: float = DEFAULT_OCR_MIN_CONF,
+    ) -> None:
         from paddleocr import PaddleOCR  # noqa: WPS433 (lazy import)
+
+        self.min_text_len = min_text_len
+        self.min_conf = min_conf
 
         # paddleocr 2.10 silently accepts unknown kwargs; choose the API by
         # probing whether ``predict`` exists (3.x) versus only ``ocr`` (2.x).
@@ -155,12 +192,12 @@ class OCRBackend:
             results = self._ocr.predict(image_bgr)
             polys: list[np.ndarray] = []
             for r in results:
-                polys.extend(_extract_polys_v3(r))
+                polys.extend(_extract_polys_v3(r, self.min_text_len, self.min_conf))
             return polys
         out = self._ocr.ocr(image_bgr, cls=True)
         if not out:
             return []
-        return _extract_polys_v2(out[0])
+        return _extract_polys_v2(out[0], self.min_text_len, self.min_conf)
 
 
 # ---------------------------------------------------------------------------
@@ -173,11 +210,32 @@ def classify_crop(
     ocr: OCRBackend,
     ar_threshold: float,
     row_gap_frac: float,
+    hard_rect_ar: float,
+    hard_square_ar: float,
 ) -> tuple[str, dict]:
-    """Return (plate_type, debug_info) for one cropped plate."""
+    """Return (plate_type, debug_info) for one cropped plate.
+
+    Hard-AR override (geometry is decisive at the extremes):
+      * AR >= ``hard_rect_ar``   -> always ``rect``   (real squares cap at AR ~2.2)
+      * AR <= ``hard_square_ar`` -> always ``square`` (real 1-row plates start AR ~2.0)
+    In both cases the OCR call is skipped entirely.
+    """
     h, w = crop_bgr.shape[:2]
     ar = (w / h) if h > 0 else 0.0
     ar_choice = "rect" if ar >= ar_threshold else "square"
+
+    if ar >= hard_rect_ar:
+        return "rect", {
+            "w": w, "h": h, "ar": round(ar, 3),
+            "row_count": -1, "ocr_choice": "", "ar_choice": ar_choice,
+            "n_polys": 0, "reason": "hard_ar",
+        }
+    if 0 < ar <= hard_square_ar:
+        return "square", {
+            "w": w, "h": h, "ar": round(ar, 3),
+            "row_count": -1, "ocr_choice": "", "ar_choice": ar_choice,
+            "n_polys": 0, "reason": "hard_ar",
+        }
 
     polys = ocr.polys(crop_bgr)
     rows = count_rows(polys, crop_h=h, gap_frac=row_gap_frac)
@@ -189,6 +247,7 @@ def classify_crop(
         ocr_choice = None
 
     chosen = ocr_choice if ocr_choice is not None else ar_choice
+    reason = "ocr" if ocr_choice is not None else "ar_fallback"
     return chosen, {
         "w": w,
         "h": h,
@@ -197,6 +256,7 @@ def classify_crop(
         "ocr_choice": ocr_choice or "",
         "ar_choice": ar_choice,
         "n_polys": len(polys),
+        "reason": reason,
     }
 
 
@@ -271,11 +331,25 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dataroot", type=Path, default=DEFAULT_DATAROOT)
     p.add_argument("--out", type=Path, default=DEFAULT_OUT)
     p.add_argument("--weights", type=Path, default=DEFAULT_WEIGHTS)
-    p.add_argument("--conf", type=float, default=0.25)
+    p.add_argument("--conf", type=float, default=DEFAULT_CONF)
     p.add_argument("--iou", type=float, default=0.5)
     p.add_argument("--imgsz", type=int, default=640)
-    p.add_argument("--ar-threshold", type=float, default=2.0)
-    p.add_argument("--row-gap-frac", type=float, default=0.30)
+    p.add_argument("--ar-threshold", type=float, default=DEFAULT_AR_THRESHOLD)
+    p.add_argument("--row-gap-frac", type=float, default=DEFAULT_ROW_GAP_FRAC)
+    p.add_argument("--min-area", type=int, default=DEFAULT_MIN_AREA,
+                   help="reject crops smaller than this in px^2")
+    p.add_argument("--min-ar", type=float, default=DEFAULT_MIN_AR,
+                   help="reject crops with aspect ratio below this")
+    p.add_argument("--max-ar", type=float, default=DEFAULT_MAX_AR,
+                   help="reject crops with aspect ratio above this")
+    p.add_argument("--hard-rect-ar", type=float, default=DEFAULT_HARD_RECT_AR,
+                   help="AR at or above this -> always rect (skip OCR)")
+    p.add_argument("--hard-square-ar", type=float, default=DEFAULT_HARD_SQUARE_AR,
+                   help="AR at or below this -> always square (skip OCR)")
+    p.add_argument("--ocr-min-text-len", type=int, default=DEFAULT_OCR_MIN_TEXT_LEN,
+                   help="drop OCR lines whose recognized text is shorter than this")
+    p.add_argument("--ocr-min-conf", type=float, default=DEFAULT_OCR_MIN_CONF,
+                   help="drop OCR lines whose confidence is below this")
     p.add_argument("--device", choices=("auto", "cpu", "mps", "cuda"), default="auto")
     p.add_argument("--batch", type=int, default=8)
     p.add_argument("--limit", type=int, default=None, help="process only first N frames")
@@ -294,21 +368,39 @@ def main() -> int:
     print(f"frames to process: {len(frames)}")
 
     detector, device = load_detector(args.weights, args.device)
-    print(f"detector ready (device={device}, weights={args.weights.name})")
+    print(
+        f"detector ready (device={device}, weights={args.weights.name}, "
+        f"conf={args.conf}, iou={args.iou})"
+    )
 
-    ocr = OCRBackend()
-    print(f"ocr ready (api={ocr._api})")
+    ocr = OCRBackend(
+        min_text_len=args.ocr_min_text_len,
+        min_conf=args.ocr_min_conf,
+    )
+    print(
+        f"ocr ready (api={ocr._api}, min_text_len={args.ocr_min_text_len}, "
+        f"min_conf={args.ocr_min_conf})"
+    )
+    print(
+        f"guards: min_area={args.min_area}px^2  ar in "
+        f"[{args.min_ar}, {args.max_ar}]  hard_rect>={args.hard_rect_ar}  "
+        f"hard_square<={args.hard_square_ar}"
+    )
 
     if not args.dry_run:
         prepare_out(args.out, args.clean)
 
     ambiguous_path = args.out / "_ambiguous.csv"
     no_plate_path = args.out / "_no_plate.txt"
+    filtered_path = args.out / "_filtered.csv"
     ambiguous_rows: list[dict] = []
+    filtered_rows: list[dict] = []
     no_plate: list[str] = []
 
     counts = {pt: {sp: 0 for sp in SPLITS} for pt in PLATE_TYPES}
     n_detected = 0
+    n_filtered = 0
+    n_hard_ar = 0
     t0 = time.time()
 
     # Batch frames through YOLO for throughput; classify per crop.
@@ -335,6 +427,7 @@ def main() -> int:
                 continue
 
             xyxy = boxes.xyxy.cpu().numpy()
+            confs = boxes.conf.cpu().numpy() if boxes.conf is not None else None
             stem = src_path.stem
             for idx, (x1, y1, x2, y2) in enumerate(xyxy):
                 x1i = max(0, int(round(float(x1))))
@@ -346,14 +439,40 @@ def main() -> int:
                 crop = frame[y1i:y2i, x1i:x2i]
                 if crop.size == 0:
                     continue
+
+                cw, ch = crop.shape[1], crop.shape[0]
+                cAR = (cw / ch) if ch > 0 else 0.0
+                det_conf = float(confs[idx]) if confs is not None else -1.0
+
+                # Hard geometry guards - drop before OCR even runs.
+                drop_reason: str | None = None
+                if cw * ch < args.min_area:
+                    drop_reason = "min_area"
+                elif cAR < args.min_ar:
+                    drop_reason = "min_ar"
+                elif cAR > args.max_ar:
+                    drop_reason = "max_ar"
+                if drop_reason is not None:
+                    filtered_rows.append({
+                        "split": split, "stem": stem, "idx": idx,
+                        "w": cw, "h": ch, "ar": round(cAR, 3),
+                        "det_conf": round(det_conf, 3), "reason": drop_reason,
+                    })
+                    n_filtered += 1
+                    continue
+
                 plate_type, dbg = classify_crop(
                     crop,
                     ocr=ocr,
                     ar_threshold=args.ar_threshold,
                     row_gap_frac=args.row_gap_frac,
+                    hard_rect_ar=args.hard_rect_ar,
+                    hard_square_ar=args.hard_square_ar,
                 )
                 counts[plate_type][split] += 1
                 n_detected += 1
+                if dbg["reason"] == "hard_ar":
+                    n_hard_ar += 1
 
                 if dbg["ocr_choice"] and dbg["ocr_choice"] != dbg["ar_choice"]:
                     ambiguous_rows.append(
@@ -368,6 +487,8 @@ def main() -> int:
                             "ocr_chosen": dbg["ocr_choice"],
                             "ar_chosen": dbg["ar_choice"],
                             "chosen": plate_type,
+                            "reason": dbg["reason"],
+                            "det_conf": round(det_conf, 3),
                         }
                     )
 
@@ -390,6 +511,8 @@ def main() -> int:
     print("---")
     print(f"frames processed   : {len(frames)}")
     print(f"detections (crops) : {n_detected}")
+    print(f"filtered out       : {n_filtered} (min_area / ar bounds)")
+    print(f"hard-AR fast path  : {n_hard_ar}")
     print(f"no-plate frames    : {len(no_plate)}")
     print(f"ambiguous crops    : {len(ambiguous_rows)}")
     for pt in PLATE_TYPES:
@@ -404,6 +527,12 @@ def main() -> int:
                 writer.writeheader()
                 writer.writerows(ambiguous_rows)
             print(f"ambiguous log      : {ambiguous_path}")
+        if filtered_rows:
+            with filtered_path.open("w", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=list(filtered_rows[0].keys()))
+                writer.writeheader()
+                writer.writerows(filtered_rows)
+            print(f"filtered log       : {filtered_path}")
         if no_plate:
             no_plate_path.write_text("\n".join(no_plate) + "\n")
             print(f"no-plate log       : {no_plate_path}")

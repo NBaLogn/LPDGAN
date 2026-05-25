@@ -165,3 +165,123 @@ Success criteria:
 - Generating `plate_info.txt` for the new split — handled later by
   `util/generate_plate_info.py` pointed at `dataset/adnl_cropped/<type>/`.
 - Training itself.
+
+---
+
+# Phase 2 — False-positive reduction
+
+## Context
+
+Full run (committed at `53cb516`) produced 20,908 crops with 428 ambiguous
+(2.0%) and 479 no-plate (2.3%). Numerically within target, but post-hoc
+inspection of `_ambiguous.csv` and bucket aspect-ratio histograms shows two
+clear false-positive families that the symmetric ambiguous count masks:
+
+1. **square bucket, AR ≥ 3.0** — 28 crops where OCR mistakenly read a wide
+   1-row plate as 2 rows and the OCR override won. Samples confirm physical
+   1-row plates (e.g. 778×159 AR 4.89, 491×121 AR 4.06) wrongly bucketed as
+   square.
+2. **rect bucket, AR < 2.0** — ~200 crops where the AR is well below the
+   2.0 threshold (genuinely square geometry, e.g. 270×154 AR 1.75, 119×80
+   AR 1.49) but OCR only resolved one text row and the OCR override
+   demoted them to rect.
+3. **Tiny YOLO detections** — `--conf 0.25` is loose. Smallest ambiguous
+   crop is 80×91 (~7k px²). Real plates from a 1440×1080 frame are
+   typically ≥150×60 ≈ 9k px². Many of the borderline cases are weak YOLO
+   detections of vehicle text/decals.
+
+These categories are independent of the success criteria from Phase 1 —
+they are *quality* problems, not yield problems.
+
+## Approach
+
+Tighten four knobs in `util/crop_and_classify_adnl.py`, none of which
+require new dependencies or pipeline restructuring:
+
+| Knob | Old | New | Rationale |
+|---|---|---|---|
+| `--conf` (YOLO) | 0.25 | **0.50** | Standard production threshold for plate detectors; cuts low-confidence text/decal detections. |
+| OCR `len(text)` filter | ≥ 2 | **≥ 3** | Drops "phantom row" detections where OCR resolved a 1–2-char artifact (shadow, corner letter). 3 keeps shorter legitimate row halves intact. |
+| **Hard AR override** | n/a | AR ≥ `--hard-rect-ar` (default **3.0**) → force `rect`; AR ≤ `--hard-square-ar` (default **1.3**) → force `square`. Skip OCR. | Physical plate geometry caps out at AR ≈ 2.2 for square plates and bottoms out at AR ≈ 2.5 for 1-row plates. Extreme AR is decisive; OCR row-count cannot override geometry. |
+| **Min-area filter** | n/a | `--min-area` (default **2000** px²) | Drops YOLO boxes smaller than any realistic plate from a 1440×1080 frame. Logged to `_filtered.csv`. |
+
+Optional additional sanity bound (cheap, included): drop crops with
+AR < 1.0 or AR > 6.0 — outside any Vietnamese plate range, certainly
+non-plate detections.
+
+## Classification flow (updated)
+
+```
+crop = frame[y1:y2, x1:x2]
+w, h = crop.shape[1], crop.shape[0]
+
+# (A) hard geometry filters — skip OCR entirely
+if w*h < MIN_AREA  or not (MIN_AR <= w/h <= MAX_AR):
+    log _filtered.csv ; continue
+if w/h >= HARD_RECT_AR:
+    plate_type = "rect"  ; reason = "hard_ar"
+elif w/h <= HARD_SQUARE_AR:
+    plate_type = "square"; reason = "hard_ar"
+else:
+    # (B) OCR row-count + AR fallback (existing logic)
+    polys = ocr.polys(crop)              # uses len(text)>=4 now
+    rows  = count_rows(polys, h, ROW_GAP_FRAC)
+    ocr_choice = "square" if rows>=2 else "rect" if rows==1 else None
+    ar_choice  = "rect" if w/h >= AR_THRESHOLD else "square"
+    plate_type = ocr_choice or ar_choice
+    reason     = "ocr" if ocr_choice else "ar_fallback"
+```
+
+Persist `reason` in `_ambiguous.csv` so post-run analysis can tell hard-AR
+saves apart from OCR overrides.
+
+## Files to modify
+
+| Path | Change |
+|---|---|
+| `util/crop_and_classify_adnl.py` | Update default constants, add `--min-area`, `--min-ar`, `--max-ar`, `--hard-rect-ar`, `--hard-square-ar`, `--ocr-min-text-len`. Bump default `--conf` to 0.5. Wire hard-AR fast paths before OCR call. Bump `OCR_MIN_TEXT_LEN` constant from 2 → 3 inside `_extract_polys_v2`/`_extract_polys_v3`. Add `_filtered.csv` writer. |
+
+No changes to `pyproject.toml`, `requirements.txt`, `.gitignore`,
+`util/scripts.sh` — knobs flow through the same CLI; defaults change so
+no flag updates needed downstream.
+
+## Verification
+
+```bash
+# Re-run with tightened defaults (clean previous output)
+uv run util/crop_and_classify_adnl.py --device auto --clean
+
+# Expected deltas vs phase-1 run:
+#   - total crops                  : 20,908 → ~19,500-20,000 (-3-7%)
+#       (filter drops + conf drops)
+#   - ambiguous count              : 428 → < 200 (hard-AR shortcut absorbs the tails)
+#   - rect bucket AR<2.0 count     : ~200 → < 30
+#   - square bucket AR>=3.0 count  : 28 → 0 (hard override forces them out)
+#   - no-plate frames              : 479 → 700-1000 (stricter conf increases this — acceptable)
+
+# Re-inspect histograms:
+awk -F',' 'NR>1{print $8"->"$9, $10}' dataset/adnl_cropped/_ambiguous.csv \
+  | sort | uniq -c | sort -rn
+
+# Per-bucket AR distribution:
+for d in dataset/adnl_cropped/{square,rect}/{train,test}/sharp; do
+  echo "=== $d ==="
+  find "$d" -name "*.jpg" | while read f; do
+    sips -g pixelWidth -g pixelHeight "$f" 2>/dev/null \
+      | awk '/pixel(Width|Height)/{print $2}' | paste -sd' ' -
+  done | awk '{ar=$1/$2; bin=int(ar/0.2)*0.2; c[bin]++} END{for(b in c) printf "%.1f %d\n", b, c[b]}' | sort -n
+done
+
+# Spot-check 20 random crops from each bucket; expectation >= 19 / 20 visually
+# match the bucket label.
+```
+
+Success criteria (Phase 2):
+- rect bucket: **0** crops with AR < 1.5; ≤ 30 with AR < 2.0.
+- square bucket: **0** crops with AR > 2.5; ≤ 5 with AR > 2.2.
+- ambiguous total ≤ 200 (down from 428).
+- visual sample check ≥ 19/20 per bucket.
+
+If the no-plate count balloons past 1500 (≈ 7%), revisit `--conf` at 0.4.
+If ambiguous stays > 200 with the new defaults, narrow `--hard-rect-ar`
+to 2.8 and `--hard-square-ar` to 1.5.
