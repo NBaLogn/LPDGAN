@@ -18,16 +18,15 @@ from typing import Any, TypeAlias
 TMPDIR = os.environ.get("TMPDIR", "/tmp")
 os.environ.setdefault("HOME", TMPDIR)
 
-import cv2
 import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from paddleocr import PaddleOCR
 from starlette.concurrency import run_in_threadpool
 
+from util._image_io import decode_image
 from util.generate_plate_info import make_ocr, text_to_indices
 
 ROW_GAP_FACTOR: float = 0.6
-MAX_UPLOAD_BYTES: int = 8 * 1024 * 1024
 
 Detection: TypeAlias = tuple[list[list[float]], tuple[str, float]]
 
@@ -51,24 +50,9 @@ def _require_ocr() -> PaddleOCR:
     return _ocr
 
 
-def _decode_image(data: bytes) -> np.ndarray:
-    if not data:
-        raise HTTPException(status_code=400, detail="empty upload")
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"upload exceeds {MAX_UPLOAD_BYTES} bytes",
-        )
-    arr = np.frombuffer(data, dtype=np.uint8)
-    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    if img is None:
-        raise HTTPException(status_code=400, detail="cannot decode image")
-    return img
-
-
 async def _load_and_detect(file: UploadFile) -> list[Detection]:
     ocr = _require_ocr()
-    img = _decode_image(await file.read())
+    img = decode_image(await file.read())
     result = await run_in_threadpool(ocr.ocr, img, cls=True)
     if not result or result[0] is None:
         return []
