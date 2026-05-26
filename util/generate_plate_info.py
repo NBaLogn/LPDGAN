@@ -25,7 +25,7 @@ from paddleocr import PaddleOCR
 
 
 def make_ocr() -> PaddleOCR:
-    return PaddleOCR(lang="en", use_angle_cls=True)
+    return PaddleOCR(lang="en", use_angle_cls=True, det_db_thresh=0.2, det_db_box_thresh=0.3, det_db_unclip_ratio=3.0)
 
 
 # Western plate character set (33 classes)
