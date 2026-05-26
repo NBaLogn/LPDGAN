@@ -1,59 +1,73 @@
-# Plan: Batch endpoint JSON response + plate_info field
+# Plan: Align /ocr/batch with fast_ocr_api.py style
 
 ## Context
 
-`POST /ocr/batch` currently returns a `plate_info.txt` file download (PlainTextResponse). User wants per-image JSON results (same shape as `POST /ocr`) while still exposing the plate_info.txt content — both in one JSON response.
+`fast_ocr_api.py` (LPDGAN.fast-plate-ocr) accepts `list[UploadFile]` for batch, does concurrent reads + decodes via `asyncio.gather`. Current `ocr_api.py /ocr/batch` accepts a single zip, extracts to tempdir, processes sequentially — more ceremony, awkward for callers used to the fast-ocr style. Goal: adopt the same multi-file upload pattern and concurrent I/O, while keeping `plate_info` and `stats` fields (training-pipeline-specific) and sequential OCR (PaddleOCR is not thread-safe).
 
 ## File to modify
 
-`util/ocr_api.py` — only `ocr_batch` function (lines 223–270) and its imports.
+`util/ocr_api.py` only.
 
-## New response shape
+## Changes
+
+### 1. Input: zip → `list[UploadFile]`
+
+```python
+# Before
+async def ocr_batch(file: UploadFile = File(...)) -> dict[str, Any]:
+
+# After
+async def ocr_batch(files: list[UploadFile] = File(...)) -> dict[str, Any]:
+```
+
+### 2. Concurrency: concurrent reads + concurrent decodes, sequential OCR
+
+```python
+if not files:
+    raise HTTPException(status_code=400, detail="no files provided")
+ocr = _require_ocr()
+raw_data = await asyncio.gather(*(f.read() for f in files))
+imgs = await asyncio.gather(*(
+    run_in_threadpool(lambda d=d: _decode_image(d))
+    for d in raw_data
+))
+# OCR sequential — PaddleOCR shared state not thread-safe
+for file, img in zip(files, imgs):
+    detections = await run_in_threadpool(_ocr_with_split_fallback, ocr, img)
+    ...
+```
+
+### 3. Response: keep plate_info + stats, add avg_confidence
+
+`filename` from `file.filename`. `avg_confidence = float(np.mean(confs)) if confs else None`.
 
 ```json
 {
-  "results": [
-    {
-      "filename": "img001.jpg",
-      "text": "51G123456",
-      "rows": ["51G", "123456"],
-      "num_rows": 2,
-      "indices": [12, 34, 56, 78],
-      "confidences": [0.99, 0.97]
-    }
-  ],
-  "plate_info": "img001.jpg,12 34 56 78\nimg002.jpg,0 0 0 0\n",
-  "stats": { "processed": 2, "failed": 0 }
+  "results": [{"filename": "lp161.jpg", "text": "29-V7504.44", "rows": [...],
+               "num_rows": 2, "indices": [...], "confidences": [...], "avg_confidence": 0.98}],
+  "plate_info": "lp161.jpg,3 10 ...\n",
+  "stats": {"processed": 1, "failed": 0}
 }
 ```
 
-- `results`: list of per-image dicts, each identical to `POST /ocr` response + `filename` key
-- `plate_info`: same string content as previous txt download
-- `stats`: moved from `X-OCR-Stats` header into body
+### 4. Remove dead code
 
-## Implementation
+- `_validate_and_extract_zip` — delete (zip upload gone)
+- `_process_single_image_file` — delete (logic inlined into loop)
+- Unused imports: `io`, `shutil`, `tempfile`, `zipfile`
+- Unused constants: `BATCH_MAX_UPLOAD_BYTES`, `IMAGE_EXTS`
 
-1. In `ocr_batch`, build two parallel lists:
-   - `results`: append `{filename: p.name, **res}` per image (reuse `_process_single_image_file`)
-   - `lines`: same `f"{p.name},{' '.join(...)}"` logic as before
-2. Return `dict` (FastAPI auto-serializes) instead of `PlainTextResponse`
-3. Remove unused `Response` / `PlainTextResponse` / `FileResponse` from imports if no longer needed elsewhere
+### 5. Add import
 
-## Reused
-
-- `_process_single_image_file` (`util/ocr_api.py:163`) — unchanged
-- `_validate_and_extract_zip` (`util/ocr_api.py:129`) — unchanged
+`import asyncio`
 
 ## Verification
 
 ```bash
-# start server
-uvr uvicorn util.ocr_api:app --host 0.0.0.0 --port 8000
+uv run uvicorn util.ocr_api:app --host 0.0.0.0 --port 8000
 
-# create test zip of plate images, then:
-curl -s -X POST http://localhost:8000/ocr/batch \
-  -F "file=@test_plates.zip" | python3 -m json.tool
-
-# confirm keys: results, plate_info, stats
-# confirm results[0] has: filename, text, rows, num_rows, indices, confidences
+curl -s http://localhost:8000/ocr/batch \
+  -F "files=@dataset/quan_lp/train/sharp/lp161.jpg" \
+  -F "files=@dataset/quan_lp/train/sharp/lp167.jpg" | python3 -m json.tool
+# expect: results[*].filename, results[*].avg_confidence, plate_info string, stats keys
 ```

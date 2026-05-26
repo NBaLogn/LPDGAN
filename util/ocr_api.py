@@ -11,13 +11,9 @@ Run:
 
 from __future__ import annotations
 
-import io
+import asyncio
 import os
-import shutil
-import tempfile
-import zipfile
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any, TypeAlias
 
 TMPDIR = os.environ.get("TMPDIR", "/tmp")
@@ -33,8 +29,6 @@ from util.generate_plate_info import make_ocr, text_to_indices
 
 ROW_GAP_FACTOR: float = 0.3
 MAX_UPLOAD_BYTES: int = 8 * 1024 * 1024
-BATCH_MAX_UPLOAD_BYTES: int = 200 * 1024 * 1024
-IMAGE_EXTS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png"})
 
 Detection: TypeAlias = tuple[list[list[float]], tuple[str, float]]
 
@@ -137,65 +131,6 @@ def _cluster_rows(detections: list[Detection]) -> tuple[list[str], list[float]]:
 
 
 # ---------------------------------------------------------------------------
-# Batch helpers
-# ---------------------------------------------------------------------------
-
-
-async def _validate_and_extract_zip(file: UploadFile) -> tuple[Path, list[Path]]:
-    """Validate zip size, extract images to temp dir, return (tmp_dir, sorted paths)."""
-    data = await file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="empty upload")
-    if len(data) > BATCH_MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"upload exceeds {BATCH_MAX_UPLOAD_BYTES} bytes",
-        )
-
-    tmp = Path(tempfile.mkdtemp(prefix="ocr_batch_"))
-    try:
-        with zipfile.ZipFile(io.BytesIO(data)) as zf:
-            if not zf.namelist():
-                raise HTTPException(status_code=400, detail="empty zip archive")
-            for member in zf.namelist():
-                if Path(member).suffix.lower() in IMAGE_EXTS:
-                    zf.extract(member, tmp)
-
-        paths = sorted(
-            p for p in tmp.rglob("*") if p.suffix.lower() in IMAGE_EXTS
-        )
-        if not paths:
-            raise HTTPException(
-                status_code=400,
-                detail="no image files (.jpg/.jpeg/.png) found in zip",
-            )
-        return tmp, paths
-    except zipfile.BadZipFile:
-        shutil.rmtree(tmp, ignore_errors=True)
-        raise HTTPException(status_code=400, detail="invalid zip archive")
-
-
-def _process_single_image_file(img_path: Path) -> dict[str, Any]:
-    """Run OCR on a single image file. Returns same shape as POST /ocr.
-
-    Synchronous (not async) — PaddleOCR.ocr() has thread-unsafe shared state,
-    so batch processing must sequence calls rather than running concurrently.
-    """
-    ocr = _require_ocr()
-    img = _decode_image(img_path.read_bytes())
-    detections = _ocr_with_split_fallback(ocr, img)
-    rows, confs = _cluster_rows(detections)
-    full_text = "".join(rows)
-    return {
-        "text": full_text,
-        "rows": rows,
-        "num_rows": len(rows),
-        "indices": text_to_indices(full_text),
-        "confidences": confs,
-    }
-
-
-# ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
@@ -234,55 +169,75 @@ async def ocr_raw(file: UploadFile = File(...)) -> dict[str, Any]:
 
 
 @app.post("/ocr/batch")
-async def ocr_batch(file: UploadFile = File(...)) -> dict[str, Any]:
-    """Upload zip of plate images → JSON with per-image OCR results and plate_info content.
+async def ocr_batch(files: list[UploadFile] = File(...)) -> dict[str, Any]:
+    """Upload multiple plate images → JSON with per-image OCR results and plate_info content.
 
-    Images are processed sequentially because PaddleOCR's shared internal
-    state is not thread-safe.
+    Reads and decodes images concurrently; OCR is sequential (PaddleOCR shared
+    state is not thread-safe).
     """
+    if not files:
+        raise HTTPException(status_code=400, detail="no files provided")
+    ocr = _require_ocr()
+
+    raw_data = await asyncio.gather(*(f.read() for f in files))
+    imgs = await asyncio.gather(*(
+        run_in_threadpool(lambda d=d: _decode_image(d))
+        for d in raw_data
+    ), return_exceptions=True)
+
     results: list[dict[str, Any]] = []
     lines: list[str] = []
     failed = 0
-    tmp_dir: Path | None = None
 
-    try:
-        tmp_dir, image_paths = await _validate_and_extract_zip(file)
-
-        for p in image_paths:
-            try:
-                res = await run_in_threadpool(_process_single_image_file, p)
-                results.append({"filename": p.name, **res})
-                if res["text"]:
-                    lines.append(
-                        f"{p.name},{' '.join(str(i) for i in res['indices'])}"
-                    )
-                else:
-                    failed += 1
-                    fallback = text_to_indices("")
-                    lines.append(
-                        f"{p.name},{' '.join(str(i) for i in fallback)}"
-                    )
-            except Exception:
+    for file, img in zip(files, imgs):
+        filename = file.filename or "unknown"
+        fallback = text_to_indices("")
+        if isinstance(img, Exception):
+            failed += 1
+            results.append({
+                "filename": filename,
+                "text": "",
+                "rows": [],
+                "num_rows": 0,
+                "indices": fallback,
+                "confidences": [],
+                "avg_confidence": None,
+            })
+            lines.append(f"{filename},{' '.join(str(i) for i in fallback)}")
+            continue
+        try:
+            detections = await run_in_threadpool(_ocr_with_split_fallback, ocr, img)
+            rows, confs = _cluster_rows(detections)
+            full_text = "".join(rows)
+            avg_conf = float(np.mean(confs)) if confs else None
+            indices = text_to_indices(full_text)
+            results.append({
+                "filename": filename,
+                "text": full_text,
+                "rows": rows,
+                "num_rows": len(rows),
+                "indices": indices,
+                "confidences": confs,
+                "avg_confidence": avg_conf,
+            })
+            lines.append(f"{filename},{' '.join(str(i) for i in indices)}")
+            if not full_text:
                 failed += 1
-                fallback = text_to_indices("")
-                results.append({
-                    "filename": p.name,
-                    "text": "",
-                    "rows": [],
-                    "num_rows": 0,
-                    "indices": list(fallback),
-                    "confidences": [],
-                })
-                lines.append(
-                    f"{p.name},{' '.join(str(i) for i in fallback)}"
-                )
-    finally:
-        if tmp_dir is not None:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+        except Exception:
+            failed += 1
+            results.append({
+                "filename": filename,
+                "text": "",
+                "rows": [],
+                "num_rows": 0,
+                "indices": fallback,
+                "confidences": [],
+                "avg_confidence": None,
+            })
+            lines.append(f"{filename},{' '.join(str(i) for i in fallback)}")
 
-    processed = len(lines)
     return {
         "results": results,
         "plate_info": "\n".join(lines) + "\n" if lines else "",
-        "stats": {"processed": processed, "failed": failed},
+        "stats": {"processed": len(lines), "failed": failed},
     }
