@@ -89,6 +89,7 @@ async def ocr(file: UploadFile = File(...)) -> dict[str, Any]:
     char_probs = pred.char_probs if (pred and pred.char_probs is not None) else None
 
     return {
+        "filename": file.filename,
         "text": text,
         "indices": text_to_indices(text),
         "confidences": char_probs.tolist() if char_probs is not None else [],
@@ -110,9 +111,10 @@ async def ocr_batch(files: list[UploadFile] = File(...)) -> dict[str, Any]:
         lambda: rec.run(list(imgs), return_confidence=True)
     )
     results = []
-    for p in preds:
+    for f, p in zip(files, preds):
         char_probs = p.char_probs if p.char_probs is not None else None
         results.append({
+            "filename": f.filename,
             "text": p.plate,
             "indices": text_to_indices(p.plate),
             "confidences": char_probs.tolist() if char_probs is not None else [],
@@ -136,4 +138,4 @@ async def ocr_raw(file: UploadFile = File(...)) -> dict[str, Any]:
             entry["region_prob"] = float(p.region_prob) if p.region_prob is not None else None
         payload.append(entry)
 
-    return {"predictions": payload, "num_predictions": len(payload)}
+    return {"filename": file.filename, "predictions": payload, "num_predictions": len(payload)}
