@@ -11,7 +11,6 @@ Run:
 
 from __future__ import annotations
 
-import asyncio
 import os
 from contextlib import asynccontextmanager
 from typing import Any, TypeAlias
@@ -19,16 +18,15 @@ from typing import Any, TypeAlias
 TMPDIR = os.environ.get("TMPDIR", "/tmp")
 os.environ.setdefault("HOME", TMPDIR)
 
-import cv2
 import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from paddleocr import PaddleOCR
 from starlette.concurrency import run_in_threadpool
 
+from util._image_io import decode_image
 from util.generate_plate_info import make_ocr, text_to_indices
 
-ROW_GAP_FACTOR: float = 0.3
-MAX_UPLOAD_BYTES: int = 8 * 1024 * 1024
+ROW_GAP_FACTOR: float = 0.6
 
 Detection: TypeAlias = tuple[list[list[float]], tuple[str, float]]
 
@@ -52,44 +50,13 @@ def _require_ocr() -> PaddleOCR:
     return _ocr
 
 
-def _decode_image(data: bytes) -> np.ndarray:
-    if not data:
-        raise HTTPException(status_code=400, detail="empty upload")
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"upload exceeds {MAX_UPLOAD_BYTES} bytes",
-        )
-    arr = np.frombuffer(data, dtype=np.uint8)
-    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    if img is None:
-        raise HTTPException(status_code=400, detail="cannot decode image")
-    h, w = img.shape[:2]
-    if max(h, w) < 300:
-        img = cv2.resize(img, (w * 3, h * 3), interpolation=cv2.INTER_CUBIC)
-    return img
-
-
-def _ocr_with_split_fallback(ocr: PaddleOCR, img: np.ndarray) -> list[Detection]:
-    """Run OCR on full image; if ≤1 row detected, retry on top/bottom halves."""
-    result = ocr.ocr(img, cls=True)
-    detections: list[Detection] = result[0] if (result and result[0] is not None) else []
-    if len(detections) > 1:
-        return detections
-    mid = img.shape[0] // 2
-    top_r = ocr.ocr(img[:mid], cls=True)
-    bot_r = ocr.ocr(img[mid:], cls=True)
-    top_dets: list[Detection] = top_r[0] if (top_r and top_r[0] is not None) else []
-    bot_dets: list[Detection] = bot_r[0] if (bot_r and bot_r[0] is not None) else []
-    bot_dets = [([[p[0], p[1] + mid] for p in box], tc) for box, tc in bot_dets]
-    combined = top_dets + bot_dets
-    return combined if combined else detections
-
-
 async def _load_and_detect(file: UploadFile) -> list[Detection]:
     ocr = _require_ocr()
-    img = _decode_image(await file.read())
-    return await run_in_threadpool(_ocr_with_split_fallback, ocr, img)
+    img = decode_image(await file.read())
+    result = await run_in_threadpool(ocr.ocr, img, cls=True)
+    if not result or result[0] is None:
+        return []
+    return result[0]
 
 
 def _cluster_rows(detections: list[Detection]) -> tuple[list[str], list[float]]:
@@ -125,14 +92,9 @@ def _cluster_rows(detections: list[Detection]) -> tuple[list[str], list[float]]:
     confs: list[float] = []
     for row in rows:
         row.sort(key=lambda it: it["x"])
-        row_texts.append("".join(it["text"] for it in row).strip("."))
+        row_texts.append("".join(it["text"] for it in row))
         confs.extend(it["conf"] for it in row)
     return row_texts, confs
-
-
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
 
 
 @app.get("/health")
@@ -166,78 +128,3 @@ async def ocr_raw(file: UploadFile = File(...)) -> dict[str, Any]:
         for box, (text, conf) in detections
     ]
     return {"detections": payload, "num_detections": len(payload)}
-
-
-@app.post("/ocr/batch")
-async def ocr_batch(files: list[UploadFile] = File(...)) -> dict[str, Any]:
-    """Upload multiple plate images → JSON with per-image OCR results and plate_info content.
-
-    Reads and decodes images concurrently; OCR is sequential (PaddleOCR shared
-    state is not thread-safe).
-    """
-    if not files:
-        raise HTTPException(status_code=400, detail="no files provided")
-    ocr = _require_ocr()
-
-    raw_data = await asyncio.gather(*(f.read() for f in files))
-    imgs = await asyncio.gather(*(
-        run_in_threadpool(lambda d=d: _decode_image(d))
-        for d in raw_data
-    ), return_exceptions=True)
-
-    results: list[dict[str, Any]] = []
-    lines: list[str] = []
-    failed = 0
-
-    for file, img in zip(files, imgs):
-        filename = file.filename or "unknown"
-        fallback = text_to_indices("")
-        if isinstance(img, Exception):
-            failed += 1
-            results.append({
-                "filename": filename,
-                "text": "",
-                "rows": [],
-                "num_rows": 0,
-                "indices": fallback,
-                "confidences": [],
-                "avg_confidence": None,
-            })
-            lines.append(f"{filename},{' '.join(str(i) for i in fallback)}")
-            continue
-        try:
-            detections = await run_in_threadpool(_ocr_with_split_fallback, ocr, img)
-            rows, confs = _cluster_rows(detections)
-            full_text = "".join(rows)
-            avg_conf = float(np.mean(confs)) if confs else None
-            indices = text_to_indices(full_text)
-            results.append({
-                "filename": filename,
-                "text": full_text,
-                "rows": rows,
-                "num_rows": len(rows),
-                "indices": indices,
-                "confidences": confs,
-                "avg_confidence": avg_conf,
-            })
-            lines.append(f"{filename},{' '.join(str(i) for i in indices)}")
-            if not full_text:
-                failed += 1
-        except Exception:
-            failed += 1
-            results.append({
-                "filename": filename,
-                "text": "",
-                "rows": [],
-                "num_rows": 0,
-                "indices": fallback,
-                "confidences": [],
-                "avg_confidence": None,
-            })
-            lines.append(f"{filename},{' '.join(str(i) for i in fallback)}")
-
-    return {
-        "results": results,
-        "plate_info": "\n".join(lines) + "\n" if lines else "",
-        "stats": {"processed": len(lines), "failed": failed},
-    }
