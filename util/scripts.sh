@@ -183,3 +183,22 @@ uv run inference.py \
 -i /mnt/data/nblong-t04/LPDGAN/dataset/teams/test/blur \
 -o results/LPBlur/inference/team \
 -c checkpoints/LPBlur
+
+# train on tnadmin
+$logDir = "G:\nblongT04\LPDGAN\logs_train"
+New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+
+$p = Start-Process uv -ArgumentList @(
+    "run", "main.py"
+) -RedirectStandardOutput "$logDir\train.log" `
+  -RedirectStandardError "$logDir\train.err" `
+  -PassThru
+
+$p.Id | Out-File "$logDir\train.pid"
+
+uv run main.py --mode train --gpu_ids "0" \
+  --dataroot /mnt/data/nblong-t04/LPDGAN/dataset/quan_lp \
+  --name quan_lp --batch_size 16 \
+  --num_worker 8 --num_threads 8 2>&1 | tee train-quanlp-200.txt
+
+
